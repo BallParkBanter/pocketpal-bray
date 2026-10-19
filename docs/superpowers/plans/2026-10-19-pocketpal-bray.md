@@ -32,7 +32,7 @@
 
 ## Part A — Foundation (do first; B and C start after A3)
 
-### Task A1: Bray build config and signed release APK
+### Task 1 (A1): Bray build config and signed release APK
 
 **Files:**
 - Modify: `android/app/build.gradle` (defaultConfig `applicationId`, `signingConfigs.release` keystore path → env `BRAY_KEYSTORE`)
@@ -51,7 +51,7 @@
 - [ ] **Step 5:** `yarn test src/services/talents` → all pass (upstream baseline).
 - [ ] **Step 6:** Commit `chore(bray): package id, label, signing, dummy firebase config`.
 
-### Task A2: Device harness
+### Task 2 (A2): Device harness
 
 **Files:**
 - Create: `device/lib.sh`, `device/install.sh`, `device/chat.sh`, `device/shot.sh`, `device/README.md`
@@ -68,7 +68,7 @@
 - [ ] **Step 4:** `device/shot.sh "A2: Bray build chatting on tablet"` → image appears in Mattermost channel `galaxy-tab-s7`.
 - [ ] **Step 5:** Commit `test(bray): on-device harness`.
 
-### Task A3: Eval suite and results log
+### Task 3 (A3): Eval suite and results log
 
 **Files:**
 - Create: `device/evals/cases.jsonl`, `device/run-evals.sh`, `docs/eval-results.md`
@@ -85,7 +85,7 @@
 
 ## Part B — Tablet tools (parallel agent 1, own worktree)
 
-### Task B1: ShizukuShell native module
+### Task 4 (B1): ShizukuShell native module
 
 **Files:**
 - Create: `src/specs/NativeShizukuShell.ts`
@@ -104,7 +104,7 @@
 - [ ] **Step 5 (device):** Install; app launches with no crash (`logcat` has no `FATAL EXCEPTION` for `com.pocketpalai.bray`). The first real native call happens in B2, whose device step must show Shizuku's permission prompt, tap **Allow all the time**, and screenshot it.
 - [ ] **Step 6:** Commit `feat(bray): ShizukuShell native module`.
 
-### Task B2: `tablet_status` (read-only)
+### Task 5 (B2): `tablet_status` (read-only)
 
 **Files:** Create `src/services/talents/bray/TabletStatusEngine.ts`, test `__tests__/TabletStatusEngine.test.ts`; Modify `src/services/talents/index.ts` (register B2–B5 engines).
 
@@ -115,7 +115,7 @@
 - [ ] **Step 5 (device):** Create Pal "Tablet Pal" with talents `tablet_*`; `device/chat.sh "How much battery do I have?" --pal "Tablet Pal"` → `tools_used` contains `tablet_status`, response percentage equals `dumpsys battery` level read by the harness. Screenshot.
 - [ ] **Step 6:** Add eval cases `tab-status-*` (3). Commit.
 
-### Task B3: `tablet_set_brightness` and `tablet_open_app` (change → approval)
+### Task 6 (B3): `tablet_set_brightness` and `tablet_open_app` (change → approval)
 
 **Files:** Create `TabletBrightnessEngine.ts`, `TabletOpenAppEngine.ts`, `src/services/talents/bray/approval.ts`, tests.
 
@@ -129,7 +129,7 @@
 - [ ] **Step 5 (device):** `chat.sh "Set my brightness to 40%"` → harness sees Allow/Deny dialog in UI dump, taps **Allow**, then `settings get system screen_brightness` = 102. `chat.sh "Open LibreTube"` → focused window `com.github.libretube`. Restore brightness afterwards. Screenshots.
 - [ ] **Step 6:** Eval cases `tab-bright-*`, `tab-open-*` (with `needs_approval`). Commit.
 
-### Task B4: `tablet_list_files` (read-only) and `tablet_shell` (approval)
+### Task 7 (B4): `tablet_list_files` (read-only) and `tablet_shell` (approval)
 
 **Files:** Create `TabletListFilesEngine.ts`, `TabletShellEngine.ts`, tests.
 
@@ -146,7 +146,7 @@
 
 ## Part C — Notes tools (parallel agent 2, own worktree)
 
-### Task C1: Notes export + push job (ROG-STRIX)
+### Task 8 (C1): Notes export + push job (ROG-STRIX)
 
 **Files:** Create `scripts/bray/notes_index.py`, `scripts/bray/push-notes.sh`, test `scripts/bray/test_notes_index.py`.
 
@@ -159,7 +159,7 @@
 - [ ] **Step 5 (device):** run `push-notes.sh` → `adb shell ls .../notes-db/notes | wc -l` ≈ count printed.
 - [ ] **Step 6:** Commit. (Scheduling: systemd user timer on ROG every 6 h when tablet reachable — Task C3.)
 
-### Task C2: `search_notes` and `read_note` talents
+### Task 9 (C2): `search_notes` and `read_note` talents
 
 **Files:** Create `src/services/talents/bray/NotesStore.ts`, `SearchNotesEngine.ts`, `ReadNoteEngine.ts`, tests.
 
@@ -173,7 +173,7 @@
 - [ ] **Step 5 (device):** Pal "Notes Pal" with `search_notes`, `read_note`. `chat.sh "What do my notes say about the batting cage plug?" --pal "Notes Pal"` → `tools_used` includes `search_notes`; response mentions `ZEN14` (from the HA devices note). Screenshot.
 - [ ] **Step 6:** Eval cases `notes-*` (5, three with `offline:true`). Commit.
 
-### Task C3: Keep notes fresh
+### Task 10 (C3): Keep notes fresh
 
 **Files:** Create `scripts/bray/systemd/bray-notes-push.service`, `.timer` (every 6 h, `OnUnitActiveSec=6h`), install into `~/.config/systemd/user/`.
 
@@ -184,14 +184,14 @@
 
 ## Part E — Integration, release, constant improvement (after B and C merge)
 
-### Task E1: One "Bray" Pal with all tools + release
+### Task 12 (E1): One "Bray" Pal with all tools + release
 
 - [ ] Seed Pal **"Bray"** (all `tablet_*` + notes talents, system prompt: "You are Bo's offline tablet assistant. Use a tool when the question is about this tablet or Bo's notes; otherwise answer directly. Keep answers short.") on first launch via `palStore.createPal` guarded by AsyncStorage key `bray.seeded.v1`.
 - [ ] Full `device/run-evals.sh` → ≥ 80 %; Bo runs the `--offline` subset with airplane mode on; harness reads results after.
 - [ ] Create GitHub repo `BallParkBanter/pocketpal-bray` + Gitea mirror; `gh release create v1.20.1-bray.1 <apk>`; add to Obtainium on the tablet (filter `app-prod-release`); verify install on screen.
 - [ ] Docs: Joplin note (Infrastructure/Computers/Galaxy Tab S7) "PocketPal Bray — offline tablet assistant", App Sources row, As-Built row.
 
-### Task E2: Improvement loop (ongoing)
+### Task 13 (E2): Improvement loop (ongoing)
 
 - Weekly: `git fetch upstream && git merge upstream/main` → build → full evals; ship only if pass rate ≥ last release.
 - Every failed eval case gets a fix (tool description, coercion, or system prompt) **and** stays in `cases.jsonl` as a regression test.
@@ -199,7 +199,7 @@
 
 ## Part D — MCP client (parallel agent 3, own worktree)
 
-### Task D1: MCP talent bridge
+### Task 11 (D1): MCP talent bridge
 
 **Files:** Create `src/services/talents/bray/mcp/McpClient.ts`, `McpTalentEngine.ts`, `McpServerStore.ts`, tests; Modify `package.json` (dep `@modelcontextprotocol/sdk`, Streamable HTTP transport only).
 
