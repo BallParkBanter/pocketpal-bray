@@ -118,6 +118,15 @@ class Dialog(unittest.TestCase):
         other = DIALOG.replace('package="com.pocketpalai.bray"', 'package="moe.shizuku.privileged.api"')
         self.assertIsNone(chat_parse.approval_dialog(other, "allow"))
 
+    def test_empty_reply_footer_counts_as_done(self):
+        # Final step with no tokens: footer has no TTFT. Seen live after
+        # tablet_set_brightness; it must not look like "still generating".
+        xml = FIXTURE
+        f = chat_parse.footer_texts(xml)[0]
+        empty = xml.replace(f, "0ms/token, 0.00 tokens/sec")
+        self.assertEqual(chat_parse.footer_texts(empty)[0], "0ms/token, 0.00 tokens/sec")
+        self.assertIsNone(chat_parse.parse(empty)["ttft_ms"])
+
     def test_cli(self):
         p = HERE / "fixtures" / "approval-dialog.xml"
         r = subprocess.run([sys.executable, "-I", str(HERE.parent / "chat_parse.py"), "--dialog", str(p), "allow"],

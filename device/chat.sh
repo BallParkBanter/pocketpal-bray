@@ -53,6 +53,7 @@ answer_dialog() {
   local dlg shot
   dlg="$(python3 -I "$HERE/chat_parse.py" --dialog "$XML" "$APPROVE")" || return 1
   shot="$(_dev_shot "$BRAY_SHOT_DIR/approval-$(date +%Y%m%d-%H%M%S).png")"
+  [[ -n "$shot" ]] && cp "$XML" "${shot%.png}.xml"   # the dialog's UI dump, next to its screenshot
   python3 -I -c 'import json,sys; d=json.loads(sys.argv[1]); d["screenshot"]=sys.argv[2] or None; print(json.dumps(d, ensure_ascii=False))' \
     "$dlg" "$shot" >>"$APPR"
   # shellcheck disable=SC2046
@@ -144,8 +145,18 @@ prepare() {
     # Close the sheet by its backdrop, never with BACK (BACK can background
     # the app, which auto-releases the model).
     # The "No Pal" row only exists while a Pal is active; absent means none is.
+    # The last rows sit under the message bar (a tap there hits the input),
+    # so scroll the list up first: with few Pals this is a no-op.
+    dev_adb shell input swipe 1280 1150 1280 500 500; sleep 1
     tap "$pal_rx" || { tap '^Bottom sheet backdrop$'; [[ "$PAL" == "No Pal" ]] || fail "pal not found: $PAL"; }
     sleep 2
+    # Verify: the input bar shows "Pal: <name>" while a Pal is active.
+    dump || fail "uiautomator dump failed"
+    if [[ "$PAL" == "No Pal" ]]; then
+      ! has '^Pal: ' || fail "pal still active after choosing No Pal"
+    else
+      has "^Pal: $(python3 -I -c 'import re,sys; print(re.escape(sys.argv[1]))' "$PAL")\$" || fail "pal not selected: $PAL"
+    fi
   fi
 
   dump || fail "uiautomator dump failed"

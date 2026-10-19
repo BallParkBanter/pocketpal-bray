@@ -18,7 +18,8 @@ import re
 import sys
 import xml.etree.ElementTree as ET
 
-METRICS = re.compile(r"([\d.]+)ms/token, ([\d.]+) tokens/sec.*?([\d.]+)ms TTFT")
+# TTFT is missing when the final step produced no tokens (empty reply): still a finished turn.
+METRICS = re.compile(r"([\d.]+)ms/token, ([\d.]+) tokens/sec(?:.*?([\d.]+)ms TTFT)?")
 # ToolUsedChip (testID tool-used-chip): "used <name>[ · N tokens · Ns]" (en.json chat.toolUsedChip)
 CHIP = re.compile(r"^used (\S+?)(?: · .*)?$")
 # ToolErrorBlock (testID tool-error-block): "<name> failed" (en.json chat.toolErrorBlock)
@@ -104,8 +105,8 @@ def approval_dialog(xml_text, choice="deny", pkg=BRAY_PKG):
     b = bbox(target)
     if b is None:
         return None
-    title = next((n.get("text", "") for n in nodes if n.get("resource-id") == "android:id/alertTitle"), "")
-    message = next((n.get("text", "") for n in nodes if n.get("resource-id") == "android:id/message"), "")
+    title = next((n.get("text", "") for n in nodes if n.get("resource-id", "").endswith(":id/alertTitle")), "")
+    message = next((n.get("text", "") for n in nodes if n.get("resource-id", "").endswith(":id/message")), "")
     return {"title": title, "message": message, "choice": "allow" if choice == "allow" else "deny",
             "x": (b[0] + b[2]) // 2, "y": (b[1] + b[3]) // 2}
 
@@ -127,7 +128,7 @@ def parse(xml_text):
         mtext = footer.get("text", "")
         m = METRICS.search(mtext)
         out["tok_s"] = float(m.group(2))
-        out["ttft_ms"] = int(float(m.group(3)))
+        out["ttft_ms"] = int(float(m.group(3))) if m.group(3) else None
         # The bubble's content-desc is "<reply text>, <metrics>" but joins
         # paragraphs with ", " and omits code-block bodies, so when the whole
         # bubble is on screen rebuild the reply from the text nodes inside it.
@@ -185,7 +186,8 @@ def main(argv):
     if err:
         out["error"] = err
     elif ok and not out["ok"]:
-        out["error"] = "reply or metrics not found in UI dump"
+        out["error"] = ("empty reply (the model ended its turn without text)" if out["tok_s"] is not None
+                        else "reply or metrics not found in UI dump")
     print(json.dumps(out, ensure_ascii=False))
     return 0 if out["ok"] else 1
 
