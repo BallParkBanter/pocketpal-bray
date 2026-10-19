@@ -125,6 +125,25 @@ prepare() {
     # The "No Pal" row only exists while a Pal is active; absent means none is.
     tap "$pal_rx" || { tap '^Bottom sheet backdrop$'; [[ "$PAL" == "No Pal" ]] || fail "pal not found: $PAL"; }
     sleep 2
+    # Rows past the 4th sit behind the input bar: the tap above then lands on nothing and
+    # the sheet stays open. Scroll the list to its end and tap again.
+    dump || fail "uiautomator dump failed"
+    if has '^Bottom sheet backdrop$' && [[ "$PAL" != "No Pal" ]]; then
+      local dims w h
+      dims="$(python3 -I - "$XML" <<'PY'
+import re, sys
+import xml.etree.ElementTree as ET
+n = next(ET.parse(sys.argv[1]).getroot().iter("node"))
+m = re.match(r"\[0,0\]\[(\d+),(\d+)\]", n.get("bounds", ""))
+print(m.group(1), m.group(2)) if m else None
+PY
+)"
+      read -r w h <<<"$dims"
+      if [[ -n "${w:-}" && -n "${h:-}" ]]; then
+        dev_adb shell input swipe $((w / 2)) $((h * 78 / 100)) $((w / 2)) $((h * 44 / 100)) 500 >/dev/null; sleep 1
+        tap "$pal_rx" || fail "pal not found after scroll: $PAL"; sleep 2
+      fi
+    fi
   fi
 
   dump || fail "uiautomator dump failed"

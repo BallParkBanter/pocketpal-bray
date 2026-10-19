@@ -9,3 +9,6 @@ Appended by `device/run-evals.sh`. Cases live in `device/evals/cases.jsonl`.
 | 2026-10-19 11:00 | base-summary | PASS | 9.46 | 2180 | - | The Mississippi River, the second-longest in North America, flows from Lake Ita... |
 | 2026-10-19 11:02 | base-followup | PASS | 6.1 | 1689 | - | Teal |
 | 2026-10-19 11:08 | base-followup | PASS | 5.31 | 2229 | - | Teal |
+| 2026-10-19 14:28 | notes-batting-cage | FAIL | - | - | - | model not loaded (released twice) |
+| 2026-10-19 14:29 | notes-ac-filter | FAIL | - | - | - | pal not found: Notes Pal |
+| 2026-10-19 14:30 | notes-telluride-lx | FAIL | - | - | - | pal not found: Notes Pal |
