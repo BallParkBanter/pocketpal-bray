@@ -54,6 +54,7 @@ import {
   talentRegistry,
 } from '../services/talents';
 import type {ToolDefinition} from '../services/talents/types';
+import {EmptyReplyFallback} from '../services/talents/bray/emptyReplyFallback';
 import {
   agentStateReducer,
   createTriggerMarkerCache,
@@ -394,6 +395,9 @@ async function applyEventToStore(
     hasImages: boolean;
     isMultimodalEnabled: boolean;
     tts: TtsRunState;
+    // Bray fork: show a successful tool's summary when the model's final
+    // step is empty (see EmptyReplyFallback).
+    emptyReply: EmptyReplyFallback;
   },
 ): Promise<void> {
   switch (event.type) {
@@ -403,6 +407,7 @@ async function applyEventToStore(
       // persist here — the message was added before the run started.
       return;
     case 'step_started':
+      ctx.emptyReply.onStepStarted();
       if (ctx.tts.enabled) {
         ctx.tts.prevContent = '';
         ctx.tts.prevReasoning = '';
@@ -413,6 +418,7 @@ async function applyEventToStore(
       });
       return;
     case 'token': {
+      ctx.emptyReply.onToken(event.delta);
       const hasFirstTokenSignal = !!(
         event.delta.content || event.delta.reasoningContent
       );
@@ -478,6 +484,7 @@ async function applyEventToStore(
       // the active step from the preceding `token` event with toolCalls.
       return;
     case 'tool_call_finished':
+      ctx.emptyReply.onToolFinished(event.outcome);
       await chatSessionStore.appendToolOutcome(
         ctx.messageId,
         ctx.sessionId,
@@ -502,6 +509,23 @@ async function applyEventToStore(
           ctx.sessionId,
           event.toolCalls,
         );
+      }
+      {
+        const fallback = ctx.emptyReply.fallbackFor(event.toolCalls);
+        const step = (
+          chatSessionStore.sessions
+            .find(x => x.id === ctx.sessionId)
+            ?.messages.find(m => m.id === ctx.messageId) as
+            | MessageType.AssistantTurn
+            | undefined
+        )?.steps?.at(-1);
+        if (fallback && !step?.content?.trim()) {
+          chatSessionStore.updateActiveStepStreaming(
+            ctx.messageId,
+            ctx.sessionId,
+            {content: fallback},
+          );
+        }
       }
       await chatSessionStore.finalizeActiveStep(ctx.messageId, ctx.sessionId);
       return;
@@ -791,6 +815,7 @@ export const useChatSession = (
       stepMode: 'undecided',
       spokeAny: false,
     };
+    const emptyReply = new EmptyReplyFallback();
     let triggerMarkers: string[] = [];
     // Marker detection reads `grammar_triggers` from a local Jinja
     // `getFormattedChat` call — only meaningful when a local llama.rn
@@ -898,6 +923,7 @@ export const useChatSession = (
           hasImages,
           isMultimodalEnabled,
           tts,
+          emptyReply,
         });
 
         if (performance.now() - lastYieldTs >= YIELD_INTERVAL_MS) {
