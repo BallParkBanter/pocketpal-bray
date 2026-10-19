@@ -8,11 +8,13 @@ Tailscale relay `localhost:5599`). Never hard-code the serial.
 | Script | What it does |
 |---|---|
 | `install.sh <apk>` | `adb install -r`, then checks the package is `com.pocketpalai.bray` with `primaryCpuAbi=arm64-v8a`. Prints `installed com.pocketpalai.bray arm64-v8a`. |
-| `chat.sh "<prompt>" [--pal "<name>"] [--timeout 180] [--keep-thinking]` | New chat, optional Pal, thinking OFF, types the prompt, waits for the reply. Prints one JSON line (below). Exit 0 if `ok`. |
+| `chat.sh "<prompt>" [--pal "<name>"] [--timeout 180] [--keep-thinking] [--continue]` | New chat, optional Pal, thinking OFF, types the prompt, waits for the reply. `--continue` skips New Chat/Pal/thinking and sends into the current conversation (multi-turn). Prints one JSON line (below). Exit 0 if `ok`. |
+| `run-evals.sh [--only <id-prefix>] [--offline]` | Runs `evals/cases.jsonl` through `chat.sh` under one device lock, appends a row per case to `docs/eval-results.md`, prints `PASS n/m` (exit 1 below 80 %). Optional `"setup"` in a case is sent first as a new chat, then `prompt` with `--continue`; only the last reply is graded. `needs_approval` cases are SKIP (not counted). |
+| `eval_grade.py` | Grading and table rows for `run-evals.sh`. |
 | `shot.sh "<caption>"` | Screenshot, posted to Mattermost `galaxy-tab-s7` (`BRAY_MM_CHANNEL` overrides). Prints the PNG path. |
 | `lib.sh` | Shared helpers (source it). |
 | `chat_parse.py` | Turns a UI dump into chat.sh's JSON line (used by `chat.sh`, importable by tests). |
-| `tests/` | Offline tests, no tablet needed: `tests/test_lock.sh`, `python3 -I tests/test_chat_parse.py`. |
+| `tests/` | Offline tests, no tablet needed: `tests/test_lock.sh`, `python3 -I tests/test_chat_parse.py`, `python3 -I tests/test_eval_grade.py`. |
 
 ## chat.sh output
 
@@ -33,7 +35,7 @@ Tailscale relay `localhost:5599`). Never hard-code the serial.
 - On failure `ok` is `false` and an `error` field says why (`tablet locked or asleep — Bo must unlock`,
   `pal not found: X`, `timed out …`, `model not loaded …`, `device lock busy …`). The JSON line is
   printed in every case, including a lock timeout (exit 75).
-- `--pal "No Pal"` clears the active Pal. Without `--pal` the current Pal stays.
+- `--pal "No Pal"` clears the active Pal (the row only exists while a Pal is active; if absent, no Pal is active and chat.sh carries on). Without `--pal` the current Pal stays.
 
 ## lib.sh functions
 

@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
-# device/chat.sh "<prompt>" [--pal "<name>"] [--timeout 180] [--keep-thinking]
+# device/chat.sh "<prompt>" [--pal "<name>"] [--timeout 180] [--keep-thinking] [--continue]
 #
 # Drives PocketPal Bray on the tablet: new chat, optional Pal, thinking OFF,
 # types the prompt, sends, waits for the reply's metrics footer, screenshots.
+# --continue: skip New Chat / Pal / thinking; send into the current conversation
+#   (multi-turn). --pal is ignored with --continue.
 # Prints ONE JSON line on stdout:
 #   {"prompt","response","tok_s","ttft_ms","tools_used":[...],"screenshot","ok", "error"?}
 # Exit 0 when ok, 1 otherwise (the JSON line is printed either way).
@@ -15,14 +17,15 @@ HERE="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
 # shellcheck source=lib.sh
 source "$HERE/lib.sh"
 
-PROMPT=""; PAL=""; TIMEOUT=180; KEEP_THINKING=0
+PROMPT=""; PAL=""; TIMEOUT=180; KEEP_THINKING=0; CONTINUE=0
 BRAY_MODEL_RX="${BRAY_MODEL_RX:-^gemma-4-E2B-it-Q4_0\.gguf$}"   # model to load if none is
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --pal) PAL="$2"; shift 2 ;;
     --timeout) TIMEOUT="$2"; shift 2 ;;
     --keep-thinking) KEEP_THINKING=1; shift ;;
-    -h|--help) sed -n '2,13p' "$0"; exit 0 ;;
+    --continue) CONTINUE=1; shift ;;
+    -h|--help) sed -n '2,15p' "$0"; exit 0 ;;
     *) [[ -z "$PROMPT" ]] || { echo "chat.sh: unexpected arg: $1" >&2; exit 2; }; PROMPT="$1"; shift ;;
   esac
 done
@@ -106,6 +109,11 @@ prepare() {
   fi
   ensure_model || fail "could not load model matching $BRAY_MODEL_RX"
 
+  if [[ $CONTINUE == 1 ]]; then
+    dump || fail "uiautomator dump failed"
+    [[ "$(model_state)" == chat-ok ]]; return
+  fi
+
   tap 'id:^reset-button$' || fail "new-chat (reset) button not found"; sleep 1
 
   if [[ -n "$PAL" ]]; then
@@ -114,7 +122,8 @@ prepare() {
     pal_rx="^$(python3 -I -c 'import re,sys; print(re.escape(sys.argv[1]))' "$PAL")(, |$)"
     # Close the sheet by its backdrop, never with BACK (BACK can background
     # the app, which auto-releases the model).
-    tap "$pal_rx" || { tap '^Bottom sheet backdrop$'; fail "pal not found: $PAL"; }
+    # The "No Pal" row only exists while a Pal is active; absent means none is.
+    tap "$pal_rx" || { tap '^Bottom sheet backdrop$'; [[ "$PAL" == "No Pal" ]] || fail "pal not found: $PAL"; }
     sleep 2
   fi
 
