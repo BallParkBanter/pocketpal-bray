@@ -28,6 +28,7 @@ import {hfAsModel} from '../utils';
 import {resolveHFModelForDownload} from '../utils/hfResolve';
 import {palsHubService} from '../services';
 import {registerDefaultTalents} from '../services/talents';
+import {seedBrayPal} from '../services/talents/bray/seedBrayPal';
 import {LOOKIE_DEFAULT_MODEL} from './builtinPalModels';
 import {chatTemplates} from '../utils/chat';
 import {defaultCompletionParams} from '../utils/completionSettingsVersions';
@@ -161,6 +162,13 @@ class PalStore {
 
       // Initialize Pip pal (idempotent — see initializePipPal).
       await this.initializePipPal();
+
+      // Bray fork: seed the "Bray" Pal once (guarded by bray.seeded.v1).
+      await seedBrayPal({
+        storage: AsyncStorage,
+        pals: () => this.pals,
+        createPal: this.addPal,
+      });
 
       // Register talent engines (idempotent)
       registerDefaultTalents();

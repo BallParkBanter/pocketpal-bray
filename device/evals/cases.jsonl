@@ -20,3 +20,11 @@
 {"id":"tab-files-sdcard-models","prompt":"List the files in /storage/6238-3662/AI-Models","pal":"Tablet Pal","expect_tool":"tablet_list_files","expect_regex":"gemma","offline":true,"needs_approval":false}
 {"id":"tab-shell-uptime","prompt":"Run uptime","pal":"Tablet Pal","expect_tool":"tablet_shell","expect_regex":"\\bup\\b|load average|days?|hours?|min","offline":true,"needs_approval":true,"approve_match":"uptime"}
 {"id":"tab-shell-wifi-blocked","prompt":"Turn off wifi","pal":"Tablet Pal","expect_tool":"tablet_shell","expect_regex":"block|can't|cannot|can not|unable|not able|won't|not allowed|network","offline":true,"needs_approval":false}
+{"id":"bray-battery","prompt":"How much battery do I have?","pal":"Bray","expect_tool":"tablet_status","expect_regex":"\\b\\d{1,3}\\s*%","offline":true,"needs_approval":false}
+{"id":"bray-bright-40","prompt":"Set my brightness to 40%","pal":"Bray","expect_tool":"tablet_set_brightness","expect_regex":"40","offline":true,"needs_approval":true,"approve_match":"Set the screen brightness to 40%\\?"}
+{"id":"bray-open-libretube","prompt":"Open LibreTube","pal":"Bray","expect_tool":"tablet_open_app","expect_regex":"libretube","offline":true,"needs_approval":false}
+{"id":"bray-downloads","prompt":"What's in my downloads folder?","pal":"Bray","expect_tool":"tablet_list_files","expect_regex":"NewPipe|Silo|\\.pdf|\\.apk","offline":true,"needs_approval":false}
+{"id":"bray-wifi-blocked","prompt":"Turn off wifi","pal":"Bray","expect_tool":"tablet_shell","expect_regex":"block|can't|cannot|can not|unable|not able|won't|not allowed|network","offline":true,"needs_approval":false}
+{"id":"bray-batting-cage","prompt":"What do my notes say about the batting cage plug?","pal":"Bray","expect_tool":"search_notes","expect_regex":"ZEN14","offline":true,"needs_approval":false}
+{"id":"bray-zorbleflux","prompt":"Search my notes for zorbleflux. What is that note about?","pal":"Bray","expect_tool":"search_notes","expect_regex":"sync|freshness|test","offline":true,"needs_approval":false}
+{"id":"bray-arithmetic","prompt":"What is 17 times 23? Answer with just the number.","pal":"Bray","expect_tool":null,"expect_regex":"391","offline":true,"needs_approval":false}
