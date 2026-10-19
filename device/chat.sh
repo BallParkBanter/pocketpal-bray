@@ -196,6 +196,13 @@ print("\x27" + s.replace("\x27", "\x27\\\x27\x27") + "\x27")' "$PROMPT")"
     sleep 3
     dump || continue
     if answer_dialog; then prev=""; continue; fi
+    # A tool may have opened another app (tablet_open_app): PocketPal keeps
+    # writing its reply behind it, so bring PocketPal back to read it. Never
+    # cover Shizuku's permission dialog, which only Bo may answer.
+    if ! grep -q "package=\"$BRAY_PKG\"" "$XML" && ! grep -q 'package="moe.shizuku' "$XML"; then
+      echo "chat.sh: $(_dev_focus) is in front; bringing PocketPal back" >&2
+      _dev_launch; sleep 2; prev=""; continue
+    fi
     has "^$NOT_LOADED" && return 3
     cur=""
     if python3 -I "$HERE/chat_parse.py" --is-new "$BASE" "$XML"; then
