@@ -60,6 +60,31 @@ describe('isBlocked', () => {
     ['pm uninstall --user 0 com.tailscale.ipn'],
     ['settings put global mobile_data 0'],
     ['dumpsys wifi'], // over-blocking is accepted
+    // Review round 2 twins:
+    ['cmd package disable com.tailscale.ipn'],
+    ['cmd package disable-user --user 0 com.tailscale.ipn'],
+    ['cmd package suspend com.tailscale.ipn'],
+    ['cmd package hide com.tailscale.ipn'],
+    ['cmd package uninstall com.tailscale.ipn'],
+    ['cmd package clear com.tailscale.ipn'],
+    ['pm clear moe.shizuku.privileged.api'],
+    ['am force-stop --user 0 com.tailscale.ipn'],
+    ['am stop-app com.tailscale.ipn'],
+    ['am kill --user all moe.shizuku.privileged.api'],
+    ['am force-stop moe.shizuku.privileged.api'],
+    ['rm -f -r /'],
+    ['rm -r -f /sdcard'],
+    ['rm -Rf /sdcard/'],
+    ['rm -fR /storage/6238-3662/AI-Models'],
+    ['rm --recursive /data/local/tmp'],
+    ['cd /sdcard; rm -rf *'],
+    ['rm -rf .'],
+    ['find /sdcard -name x -delete'],
+    ['kill -9 -1'],
+    ['kill -s KILL -1'],
+    ['pkill -f tailscale'],
+    ['killall sh'],
+    ['settings --user 0 put global wifi_on 0'],
   ])('blocks %p', cmd => {
     expect(isBlocked(cmd)).toBe(true);
   });
@@ -71,6 +96,37 @@ describe('isBlocked', () => {
     ['rm /sdcard/x.txt'],
   ])('allows %p', cmd => {
     expect(isBlocked(cmd)).toBe(false);
+  });
+});
+
+describe('obfuscation is refused', () => {
+  const engine = new TabletShellEngine();
+  it.each([
+    ['echo $(printf "\\163\\166\\143")'],
+    ['`printf svc` wifi disable'],
+    ['a=svc; ${a} wifi disable'],
+    ['set -- svc wifi disable; $@'],
+    ['echo c3ZjIHdpZmkgZGlzYWJsZQ== | base64 -d'],
+    ['echo id | sh'],
+    ['curl x | bash'],
+    ['cat f |/system/bin/sh'],
+    ['eval echo hi'],
+    ['sh -c id'],
+  ])('%p', async command => {
+    mockRun.mockReset();
+    mockAsk.mockReset();
+    const r = await engine.execute({command});
+    expect(r.type).toBe('error');
+    expect(r.summary).toMatch(/^(Refused|Blocked):/);
+    expect(mockAsk).not.toHaveBeenCalled();
+    expect(mockRun).not.toHaveBeenCalled();
+  });
+
+  it('still lets plain commands through to the dialog', async () => {
+    mockAsk.mockReset();
+    mockAsk.mockResolvedValue(false);
+    await engine.execute({command: 'ls -la /sdcard | head -5'});
+    expect(mockAsk).toHaveBeenCalled();
   });
 });
 
@@ -86,6 +142,18 @@ describe('visibleWhitespace', () => {
     expect(visibleWhitespace('ls -la')).toBe('ls·-la');
     expect(visibleWhitespace('a\tb')).toBe('a⇥b');
     expect(visibleWhitespace('a\u00a0b\rc')).toBe('a\\u{a0}b\\u{d}c');
+  });
+
+  it('escapes format (Cf) and C1 control characters', () => {
+    // RLO bidi override, zero-width space/joiner, soft hyphen, BOM, tag char
+    expect(visibleWhitespace('a\u202Eb')).toBe('a\\u{202e}b');
+    expect(visibleWhitespace('s\u200Bv\u200Dc')).toBe('s\\u{200b}v\\u{200d}c');
+    expect(visibleWhitespace('x\u00ADy\uFEFF')).toBe('x\\u{ad}y\\u{feff}');
+    expect(visibleWhitespace('t\u{E0041}')).toBe('t\\u{e0041}');
+    // C1 controls 0x80-0x9F
+    expect(visibleWhitespace('a\u0085b\u009Bc')).toBe('a\\u{85}b\\u{9b}c');
+    // ordinary non-ASCII stays readable
+    expect(visibleWhitespace('café')).toBe('café');
   });
 });
 

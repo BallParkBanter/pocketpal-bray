@@ -520,6 +520,9 @@ async function applyEventToStore(
             | undefined
         )?.steps?.at(-1);
         if (fallback && !step?.content?.trim()) {
+          // The streaming slot holds one partial: land any pending one (e.g.
+          // reasoning) first so the fallback write doesn't replace it.
+          chatSessionStore.flushStreamingUpdate?.();
           chatSessionStore.updateActiveStepStreaming(
             ctx.messageId,
             ctx.sessionId,

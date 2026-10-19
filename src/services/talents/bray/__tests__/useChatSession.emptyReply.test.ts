@@ -122,6 +122,29 @@ describe('useChatSession empty-reply fallback (Bray)', () => {
     expect(contentWrites()).toContain(SUMMARY);
   });
 
+  it('flushes the pending partial (e.g. reasoning) before the fallback write', async () => {
+    const order: string[] = [];
+    const flush = jest.fn(() => order.push('flush'));
+    (chatSessionStore as any).flushStreamingUpdate = flush;
+    (
+      chatSessionStore.updateActiveStepStreaming as jest.Mock
+    ).mockImplementation((_id: string, _s: string, partial: any) => {
+      if (partial?.content === SUMMARY) {
+        order.push('fallback');
+      }
+    });
+    setup(
+      onData => {
+        onData({token: '', reasoning_content: 'thinking...'});
+        return {text: '', content: '', reasoning_content: 'thinking...'};
+      },
+      {type: 'text', summary: SUMMARY},
+    );
+    await send();
+    expect(order).toEqual(['flush', 'fallback']);
+    delete (chatSessionStore as any).flushStreamingUpdate;
+  });
+
   it('leaves a real reply alone', async () => {
     setup(
       onData => {

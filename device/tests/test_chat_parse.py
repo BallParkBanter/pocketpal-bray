@@ -189,5 +189,21 @@ class Dialog(unittest.TestCase):
         pathlib.Path(f.name).unlink()
 
 
+class Front(unittest.TestCase):
+    def xml(self, *pkgs):
+        return "<hierarchy>" + "".join('<node package="%s" bounds="[0,0][1,1]" />' % p for p in pkgs) + "</hierarchy>"
+
+    def test_decisions(self):
+        f = chat_parse.front_decision
+        self.assertEqual(f(FIXTURE), "ours")
+        self.assertEqual(f(self.xml("com.github.libretube")), "relaunch")
+        self.assertEqual(f(self.xml("moe.shizuku.privileged.api")), "wait")
+        for sysp in ("com.android.systemui", "android", "com.google.android.permissioncontroller"):
+            self.assertEqual(f(self.xml(sysp)), "system", sysp)
+        # an app with a system dialog over it: still system
+        self.assertEqual(f(self.xml("com.github.libretube", "android")), "system")
+        self.assertEqual(f("not xml"), "system")
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

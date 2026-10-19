@@ -199,10 +199,18 @@ print("\x27" + s.replace("\x27", "\x27\\\x27\x27") + "\x27")' "$PROMPT")"
     # A tool may have opened another app (tablet_open_app): PocketPal keeps
     # writing its reply behind it, so bring PocketPal back to read it. Never
     # cover Shizuku's permission dialog, which only Bo may answer.
-    if ! grep -q "package=\"$BRAY_PKG\"" "$XML" && ! grep -q 'package="moe.shizuku' "$XML"; then
-      echo "chat.sh: $(_dev_focus) is in front; bringing PocketPal back" >&2
-      _dev_launch; sleep 2; prev=""; continue
-    fi
+    case "$(python3 -I "$HERE/chat_parse.py" --front "$XML")" in
+      ours) ;;
+      wait) continue ;;   # Shizuku's permission dialog: only Bo answers it
+      system)             # lock screen / system dialog: never relaunch over it
+        _dev_ready 2>/dev/null || fail "tablet locked or asleep — Bo must unlock"
+        fail "system dialog in front; not relaunching over it" ;;
+      relaunch)
+        # Re-check the keyguard right before relaunching.
+        _dev_ready 2>/dev/null || fail "tablet locked or asleep — Bo must unlock"
+        echo "chat.sh: another app is in front; bringing PocketPal back" >&2
+        _dev_launch; sleep 2; prev=""; continue ;;
+    esac
     has "^$NOT_LOADED" && return 3
     cur=""
     if python3 -I "$HERE/chat_parse.py" --is-new "$BASE" "$XML"; then

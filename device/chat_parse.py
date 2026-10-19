@@ -124,6 +124,31 @@ def approval_dialog(xml_text, choice="deny", match=None, pkg=BRAY_PKG):
             "x": (b[0] + b[2]) // 2, "y": (b[1] + b[3]) // 2}
 
 
+SYSTEM_PKGS = {"com.android.systemui", "android", "com.android.permissioncontroller",
+               "com.google.android.permissioncontroller"}
+
+
+def front_decision(xml_text, pkg=BRAY_PKG):
+    """What chat.sh may do about the window in front while it waits:
+      "ours"     - PocketPal Bray is on screen
+      "wait"     - Shizuku's permission dialog: only Bo answers it, don't touch
+      "system"   - lock screen / system UI / a system dialog: never relaunch
+      "relaunch" - another ordinary app (a tool opened it): bring PocketPal back
+    (chat.sh also checks the keyguard with dev_ready before relaunching.)"""
+    try:
+        nodes = list(ET.fromstring(xml_text).iter("node"))
+    except ET.ParseError:
+        return "system"
+    pkgs = {n.get("package", "") for n in nodes}
+    if pkg in pkgs:
+        return "ours"
+    if any(p.startswith("moe.shizuku") for p in pkgs):
+        return "wait"
+    if not pkgs or pkgs & SYSTEM_PKGS or "" in pkgs:
+        return "system"
+    return "relaunch"
+
+
 def parse(xml_text):
     bubble = None
     out = {"response": "", "tok_s": None, "ttft_ms": None, "tools_used": []}
@@ -179,6 +204,10 @@ def main(argv):
         if d is None:
             return 1
         print(json.dumps(d, ensure_ascii=False))
+        return 0
+    if argv[1] == "--front":
+        with open(argv[2], encoding="utf-8") as f:
+            print(front_decision(f.read()))
         return 0
     if argv[1] == "--footers":
         with open(argv[2], encoding="utf-8") as f:
