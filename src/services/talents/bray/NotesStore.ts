@@ -133,10 +133,15 @@ export function rankNotes(
   }
   const scores = new Map<number, number>();
   const matched = new Map<number, number>();
+  // BM25-style term frequency: long notes (big tables) must not win on sheer volume.
+  const avgLen = index.notes.reduce((sum, nt) => sum + nt.chars, 0) / n || 1;
   terms.forEach(postings => {
     const idf = Math.log(n / postings.length) + 0.1;
     for (const [idx, count] of postings) {
-      scores.set(idx, (scores.get(idx) ?? 0) + (1 + Math.log(count)) * idf);
+      const len = index.notes[idx]?.chars ?? avgLen;
+      const k = 1.2 * (0.25 + 0.75 * (len / avgLen));
+      const tf = (count * 2.2) / (count + k);
+      scores.set(idx, (scores.get(idx) ?? 0) + tf * idf);
       matched.set(idx, (matched.get(idx) ?? 0) + 1);
     }
   });
