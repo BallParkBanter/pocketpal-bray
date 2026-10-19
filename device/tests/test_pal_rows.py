@@ -42,5 +42,11 @@ class Locate(unittest.TestCase):
         self.assertEqual(p.locate(ui(("Bray Notes", 789, 836)), "^Bray$")[0], "missing")
 
 
+    def test_close_taps_above_the_sheet(self):
+        root = ET.fromstring('<hierarchy><node content-desc="Bottom sheet backdrop" bounds="[0,0][2560,1600]"/>'
+                             '<node content-desc="Bottom Sheet" bounds="[0,609][2560,1600]"/></hierarchy>')
+        self.assertEqual(p.close_point(root), ("tap", 1280, 304))
+
+
 if __name__ == "__main__":
     unittest.main()

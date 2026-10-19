@@ -4,7 +4,8 @@ The sheet's list is short (about 4 rows on the tablet) and its lower part sits b
 the chat input bar, so a row is only safe to tap when its title lies fully between
 the tab row (Pals / Models) and the top of the input bar.
 
-CLI: pal_rows.py <ui.xml> <title-regex>
+CLI: pal_rows.py <ui.xml> --close   -> "tap X Y" on the backdrop above the sheet
+     pal_rows.py <ui.xml> <title-regex>
   prints one of:
     tap X Y          the title is fully visible: tap there
     swipe X1 Y1 X2 Y2  scroll the list (inside the visible window) and look again
@@ -58,9 +59,20 @@ def locate(root, title_rx):
     return ("swipe", 1280, top + 30, 1280, top + 30 + span)  # above: drag down
 
 
+def close_point(root):
+    """Where to tap to close the sheet: on the backdrop ABOVE the sheet. The backdrop
+    node spans the whole screen, so its centre lands on a Pal row inside the sheet
+    (that tap used to select Lookie)."""
+    tops = [b[1] for n in root.iter("node")
+            if n.get("content-desc") == "Bottom Sheet" and (b := _bounds(n))]
+    top = min(tops) if tops else 0
+    return ("tap", 1280, top // 2 if top >= 200 else 150)
+
+
 def main(argv):
     root = ET.parse(argv[1]).getroot()
-    print(" ".join(str(v) for v in locate(root, argv[2])))
+    act = close_point(root) if argv[2] == "--close" else locate(root, argv[2])
+    print(" ".join(str(v) for v in act))
     return 0
 
 
