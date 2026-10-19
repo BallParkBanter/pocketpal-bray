@@ -52,7 +52,7 @@ class Reply(unittest.TestCase):
         lines = out.stdout.splitlines()
         self.assertEqual(len(lines), 1)
         j = json.loads(lines[0])
-        self.assertEqual(list(j), ["prompt", "response", "tok_s", "ttft_ms", "tools_used", "screenshot", "ok"])
+        self.assertEqual(list(j), ["prompt", "response", "tok_s", "ttft_ms", "tools_used", "screenshot", "approvals", "ok"])
         self.assertTrue(j["ok"])
 
     def test_cli_error_on_empty_dump(self):
@@ -91,6 +91,51 @@ class MultiTurn(unittest.TestCase):
         out = subprocess.run([sys.executable, "-I", str(HERE.parent / "chat_parse.py"), "--footers",
                               str(FX / "two-turn-done.xml")], capture_output=True, text=True)
         self.assertEqual(out.stdout.split("\t")[0], "2")
+
+
+DIALOG = (HERE / "fixtures" / "approval-dialog.xml").read_text(encoding="utf-8")
+
+
+class Dialog(unittest.TestCase):
+    def test_allow_button_centre(self):
+        d = chat_parse.approval_dialog(DIALOG, "allow")
+        self.assertEqual((d["x"], d["y"], d["choice"]), (1200, 1445, "allow"))
+        self.assertEqual(d["title"], "Set brightness")
+        self.assertIn("40%", d["message"])
+
+    def test_default_is_deny(self):
+        d = chat_parse.approval_dialog(DIALOG)
+        self.assertEqual((d["x"], d["y"], d["choice"]), (990, 1445, "deny"))
+
+    def test_chat_screen_has_no_dialog(self):
+        self.assertIsNone(chat_parse.approval_dialog(FIXTURE, "allow"))
+
+    def test_shizuku_permission_dialog_is_never_answered(self):
+        shizuku = (DIALOG.replace('package="com.pocketpalai.bray"', 'package="moe.shizuku.privileged.api"')
+                   .replace('text="ALLOW"', 'text="Allow all the time"'))
+        self.assertIsNone(chat_parse.approval_dialog(shizuku, "allow"))
+        # Other package, even with exact Allow/Deny texts: not ours.
+        other = DIALOG.replace('package="com.pocketpalai.bray"', 'package="moe.shizuku.privileged.api"')
+        self.assertIsNone(chat_parse.approval_dialog(other, "allow"))
+
+    def test_cli(self):
+        p = HERE / "fixtures" / "approval-dialog.xml"
+        r = subprocess.run([sys.executable, "-I", str(HERE.parent / "chat_parse.py"), "--dialog", str(p), "allow"],
+                           capture_output=True, text=True)
+        self.assertEqual(r.returncode, 0)
+        self.assertEqual(json.loads(r.stdout)["x"], 1200)
+        r = subprocess.run([sys.executable, "-I", str(HERE.parent / "chat_parse.py"), "--dialog",
+                            str(HERE / "fixtures" / "tool-turn.xml")], capture_output=True, text=True)
+        self.assertEqual(r.returncode, 1)
+
+    def test_approvals_file_lands_in_json(self):
+        import tempfile
+        with tempfile.NamedTemporaryFile("w", suffix=".jsonl", delete=False) as f:
+            f.write(json.dumps({"title": "t", "choice": "allow"}) + "\n")
+        r = subprocess.run([sys.executable, "-I", str(HERE.parent / "chat_parse.py"), "p", "", "1", "",
+                            str(HERE / "fixtures" / "tool-turn.xml"), f.name], capture_output=True, text=True)
+        self.assertEqual(json.loads(r.stdout)["approvals"], [{"title": "t", "choice": "allow"}])
+        pathlib.Path(f.name).unlink()
 
 
 if __name__ == "__main__":

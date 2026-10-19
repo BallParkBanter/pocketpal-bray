@@ -4,6 +4,8 @@ import {DatetimeEngine} from './DatetimeEngine';
 import {WebSearchEngine} from './WebSearchEngine';
 import {ReadUrlEngine} from './ReadUrlEngine';
 import {TabletStatusEngine} from './bray/TabletStatusEngine';
+import {TabletBrightnessEngine} from './bray/TabletBrightnessEngine';
+import {TabletOpenAppEngine} from './bray/TabletOpenAppEngine';
 import {talentRegistry} from './TalentRegistry';
 import type {SearchAccess} from './searchAccess';
 import type {ToolDefinition, SystemPromptContext} from './types';
@@ -65,6 +67,8 @@ export function registerDefaultTalents(): void {
   talentRegistry.register(new ReadUrlEngine(searchAccess));
   // Bray fork: tablet-control talents (Shizuku).
   talentRegistry.register(new TabletStatusEngine());
+  talentRegistry.register(new TabletBrightnessEngine());
+  talentRegistry.register(new TabletOpenAppEngine());
   registered = true;
 }
 

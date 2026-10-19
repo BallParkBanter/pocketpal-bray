@@ -27,8 +27,38 @@ class Grade(unittest.TestCase):
         self.assertEqual(st, g.FAIL)
         self.assertIn("timed out", why)
 
-    def test_skip_needs_approval(self):
-        self.assertEqual(g.grade(dict(CASE, needs_approval=True), OK)[0], g.SKIP)
+
+
+class Approval(unittest.TestCase):
+    """The approval hook: needs_approval cases need an Allow-ed dialog."""
+    DLG = {"title": "Set brightness", "message": "Set the screen brightness to 40%?", "choice": "allow"}
+
+    def test_needs_approval_passes_after_allow(self):
+        r = dict(OK, approvals=[self.DLG])
+        self.assertEqual(g.grade(dict(CASE, needs_approval=True), r), (g.PASS, ""))
+
+    def test_needs_approval_without_dialog_fails(self):
+        st, why = g.grade(dict(CASE, needs_approval=True), OK)
+        self.assertEqual(st, g.FAIL)
+        self.assertIn("no approval dialog", why)
+
+    def test_needs_approval_denied_dialog_fails(self):
+        r = dict(OK, approvals=[dict(self.DLG, choice="deny")])
+        self.assertEqual(g.grade(dict(CASE, needs_approval=True), r)[0], g.FAIL)
+
+    def test_needs_approval_still_checks_regex_and_tool(self):
+        r = dict(OK, approvals=[self.DLG])
+        self.assertEqual(g.grade(dict(CASE, needs_approval=True, expect_regex="999"), r)[0], g.FAIL)
+        self.assertEqual(g.grade(dict(CASE, needs_approval=True, expect_tool="tablet_set_brightness"), r)[0], g.FAIL)
+
+    def test_unexpected_dialog_fails_other_cases(self):
+        r = dict(OK, approvals=[dict(self.DLG, choice="deny", message="Run: svc wifi disable")])
+        st, why = g.grade(CASE, r)
+        self.assertEqual(st, g.FAIL)
+        self.assertIn("svc wifi disable", why)
+
+    def test_never_skips_any_more(self):
+        self.assertNotEqual(g.grade(dict(CASE, needs_approval=True), OK)[0], g.SKIP)
 
 
 class Crash(unittest.TestCase):

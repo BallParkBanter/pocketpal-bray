@@ -4,6 +4,13 @@
 
     python3 -I chat_parse.py --footers <dump.xml>   # "<count>\t<newest footer text>"
 
+    python3 -I chat_parse.py --dialog <dump.xml> [allow|deny]
+        # rc 0 + one JSON line {"title","message","choice","x","y"} when a Bray
+        # Allow/Deny approval dialog is on screen (x,y = button to tap), else rc 1.
+
+chat.sh passes an approvals JSONL file as an optional 6th argument; its lines
+land in the output's "approvals" list.
+
 Importable for tests: parse(xml_text) -> dict of response/tok_s/ttft_ms/tools_used.
 """
 import json
@@ -71,6 +78,38 @@ def new_footer(baseline, current):
     return len(current) > len(baseline) or not baseline or current[0] != baseline[0]
 
 
+BRAY_PKG = "com.pocketpalai.bray"
+ALLOW = re.compile(r"^allow$", re.IGNORECASE)
+DENY = re.compile(r"^deny$", re.IGNORECASE)
+
+
+def approval_dialog(xml_text, choice="deny", pkg=BRAY_PKG):
+    """The Bray approval dialog (askApproval -> Alert with Deny / Allow), or None.
+
+    Only nodes of PocketPal Bray's own package count, and only buttons whose
+    whole text is Allow / Deny: Shizuku's permission dialog ("Allow all the
+    time", other package) is never matched, so the harness can't answer it.
+    -> {"title","message","choice","x","y"} with x,y the centre of the button
+    for `choice` ("allow" or "deny").
+    """
+    try:
+        nodes = [n for n in ET.fromstring(xml_text).iter("node") if n.get("package") == pkg]
+    except ET.ParseError:
+        return None
+    allow = next((n for n in nodes if ALLOW.match(n.get("text", "").strip())), None)
+    deny = next((n for n in nodes if DENY.match(n.get("text", "").strip())), None)
+    if allow is None or deny is None:
+        return None
+    target = allow if choice == "allow" else deny
+    b = bbox(target)
+    if b is None:
+        return None
+    title = next((n.get("text", "") for n in nodes if n.get("resource-id") == "android:id/alertTitle"), "")
+    message = next((n.get("text", "") for n in nodes if n.get("resource-id") == "android:id/message"), "")
+    return {"title": title, "message": message, "choice": "allow" if choice == "allow" else "deny",
+            "x": (b[0] + b[2]) // 2, "y": (b[1] + b[3]) // 2}
+
+
 def parse(xml_text):
     bubble = None
     out = {"response": "", "tok_s": None, "ttft_ms": None, "tools_used": []}
@@ -117,6 +156,13 @@ def main(argv):
     if argv[1] == "--is-new":  # <baseline.xml> <current.xml>: rc 0 when current has a new turn's footer
         with open(argv[2], encoding="utf-8") as f, open(argv[3], encoding="utf-8") as g:
             return 0 if new_footer(footer_texts(f.read()), footer_texts(g.read())) else 1
+    if argv[1] == "--dialog":
+        with open(argv[2], encoding="utf-8") as f:
+            d = approval_dialog(f.read(), argv[3] if len(argv) > 3 else "deny")
+        if d is None:
+            return 1
+        print(json.dumps(d, ensure_ascii=False))
+        return 0
     if argv[1] == "--footers":
         with open(argv[2], encoding="utf-8") as f:
             t = footer_texts(f.read())
@@ -128,7 +174,13 @@ def main(argv):
             parsed = parse(f.read())
     except OSError:
         parsed = parse("")
-    out = {"prompt": prompt, **parsed, "screenshot": shot or None}
+    out = {"prompt": prompt, **parsed, "screenshot": shot or None, "approvals": []}
+    if len(argv) > 6 and argv[6]:
+        try:
+            with open(argv[6], encoding="utf-8") as f:
+                out["approvals"] = [json.loads(l) for l in f if l.strip()]
+        except (OSError, ValueError):
+            pass
     out["ok"] = ok and bool(out["response"]) and out["tok_s"] is not None
     if err:
         out["error"] = err

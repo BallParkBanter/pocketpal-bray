@@ -1,7 +1,10 @@
 package com.pocketpal.shizuku
 
+import android.content.Context
+import android.content.Intent
 import androidx.annotation.Keep
 import com.pocketpalai.shizuku.IShellService
+import org.json.JSONArray
 import org.json.JSONObject
 import java.io.ByteArrayOutputStream
 import java.io.InputStream
@@ -13,7 +16,30 @@ import kotlin.system.exitProcess
  * Shizuku instantiates it by class name, so keep the no-arg constructor.
  */
 @Keep
-class ShellUserService : IShellService.Stub() {
+class ShellUserService() : IShellService.Stub() {
+
+  private var context: Context? = null
+
+  /** Shizuku 13+ passes a Context for our package when this constructor exists. */
+  @Keep
+  constructor(context: Context) : this() {
+    this.context = context
+  }
+
+  override fun listApps(): String {
+    val out = JSONArray()
+    val ctx = context ?: return out.toString()
+    val pm = ctx.packageManager
+    val intent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
+    val seen = HashSet<String>()
+    for (ri in pm.queryIntentActivities(intent, 0)) {
+      val pkg = ri.activityInfo?.packageName ?: continue
+      if (!seen.add(pkg)) continue
+      val label = try { ri.loadLabel(pm).toString() } catch (_: Exception) { pkg }
+      out.put(JSONObject().put("label", label).put("package", pkg))
+    }
+    return out.toString()
+  }
 
   override fun destroy() {
     exitProcess(0)

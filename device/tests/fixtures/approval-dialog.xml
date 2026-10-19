@@ -1,0 +1,12 @@
+<?xml version='1.0' encoding='UTF-8' standalone='yes' ?>
+<!-- RN Alert.alert on Android = framework AlertDialog in the app's package:
+     alertTitle / message, button2 = negative ("Deny"), button1 = positive ("Allow").
+     Button text may be upper-cased by the theme. -->
+<hierarchy rotation="0">
+  <node index="0" text="" resource-id="" class="android.widget.FrameLayout" package="com.pocketpalai.bray" content-desc="" clickable="false" bounds="[260,1040][1340,1520]">
+    <node index="0" text="Set brightness" resource-id="android:id/alertTitle" class="android.widget.TextView" package="com.pocketpalai.bray" content-desc="" clickable="false" bounds="[330,1100][1270,1160]" />
+    <node index="1" text="Set the screen brightness to 40%?" resource-id="android:id/message" class="android.widget.TextView" package="com.pocketpalai.bray" content-desc="" clickable="false" bounds="[330,1190][1270,1260]" />
+    <node index="2" text="DENY" resource-id="android:id/button2" class="android.widget.Button" package="com.pocketpalai.bray" content-desc="" clickable="true" bounds="[900,1400][1080,1490]" />
+    <node index="3" text="ALLOW" resource-id="android:id/button1" class="android.widget.Button" package="com.pocketpalai.bray" content-desc="" clickable="true" bounds="[1100,1400][1300,1490]" />
+  </node>
+</hierarchy>

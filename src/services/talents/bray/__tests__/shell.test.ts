@@ -1,5 +1,6 @@
 import NativeShizukuShell from '../../../../specs/NativeShizukuShell';
 import {
+  listApps,
   runShell,
   ShizukuNotRunningError,
   ShizukuPermissionError,
@@ -12,6 +13,7 @@ jest.mock('../../../../specs/NativeShizukuShell', () => ({
     hasPermission: jest.fn(),
     requestPermission: jest.fn(),
     exec: jest.fn(),
+    listApps: jest.fn(),
   },
 }));
 
@@ -20,6 +22,7 @@ const native = NativeShizukuShell as unknown as {
   hasPermission: jest.Mock;
   requestPermission: jest.Mock;
   exec: jest.Mock;
+  listApps: jest.Mock;
 };
 
 describe('runShell', () => {
@@ -76,5 +79,31 @@ describe('runShell', () => {
       ShizukuPermissionError,
     );
     expect(native.exec).not.toHaveBeenCalled();
+  });
+});
+
+describe('listApps', () => {
+  beforeEach(() => {
+    native.isRunning.mockResolvedValue(true);
+    native.hasPermission.mockResolvedValue(true);
+  });
+
+  it('parses the label list and drops malformed entries', async () => {
+    native.listApps.mockResolvedValue(
+      JSON.stringify([
+        {label: 'LibreTube', package: 'com.github.libretube'},
+        {label: 'x'},
+        {package: 'com.example.nolabel'},
+      ]),
+    );
+    await expect(listApps()).resolves.toEqual([
+      {label: 'LibreTube', package: 'com.github.libretube'},
+      {label: 'com.example.nolabel', package: 'com.example.nolabel'},
+    ]);
+  });
+
+  it('throws ShizukuNotRunningError when Shizuku is down', async () => {
+    native.isRunning.mockResolvedValue(false);
+    await expect(listApps()).rejects.toBeInstanceOf(ShizukuNotRunningError);
   });
 });

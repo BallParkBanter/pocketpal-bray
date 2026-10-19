@@ -9,4 +9,8 @@ interface IShellService {
     // Runs `sh -c command`. Returns JSON
     // {"exitCode":int,"stdout":string,"stderr":string,"timedOut":bool}.
     String exec(String command, long timeoutMs) = 1;
+
+    // Launcher apps with their user-visible labels (shell can't print labels).
+    // Returns JSON [{"label":string,"package":string}].
+    String listApps() = 2;
 }

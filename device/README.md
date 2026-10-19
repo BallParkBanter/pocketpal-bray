@@ -8,13 +8,13 @@ Tailscale relay `localhost:5599`). Never hard-code the serial.
 | Script | What it does |
 |---|---|
 | `install.sh <apk>` | `adb install -r`, then checks the package is `com.pocketpalai.bray` with `primaryCpuAbi=arm64-v8a`. Prints `installed com.pocketpalai.bray arm64-v8a`. |
-| `chat.sh "<prompt>" [--pal "<name>"] [--timeout 180] [--keep-thinking] [--continue]` | New chat, optional Pal, thinking OFF, types the prompt, waits for the reply. `--continue` skips New Chat/Pal/thinking and sends into the current conversation (multi-turn). Prints one JSON line (below). Exit 0 if `ok`. |
-| `run-evals.sh [--only <id-prefix>] [--offline]` | Runs `evals/cases.jsonl` through `chat.sh` under one device lock, appends a row per case to `docs/eval-results.md`, prints `PASS n/m` (exit 1 below 80 %). Optional `"setup"` in a case is sent first as a new chat, then `prompt` with `--continue`; only the last reply is graded. `needs_approval` cases are SKIP (not counted). |
+| `chat.sh "<prompt>" [--pal "<name>"] [--timeout 180] [--keep-thinking] [--continue] [--approve allow\|deny]` | New chat, optional Pal, thinking OFF, types the prompt, waits for the reply. `--continue` skips New Chat/Pal/thinking and sends into the current conversation (multi-turn). `--approve` says what to tap when Bray's Allow/Deny approval dialog appears (default **deny**). Prints one JSON line (below). Exit 0 if `ok`. |
+| `run-evals.sh [--only <id-prefix>] [--offline]` | Runs `evals/cases.jsonl` through `chat.sh` under one device lock, appends a row per case to `docs/eval-results.md`, prints `PASS n/m` (exit 1 below 80 %). Optional `"setup"` in a case is sent first as a new chat, then `prompt` with `--continue`; only the last reply is graded. `needs_approval` cases run with `--approve allow` and FAIL unless a dialog was allowed; any other case FAILs if a dialog popped up (it was denied). Brightness is snapshotted before the run and restored after. |
 | `eval_grade.py` | Grading and table rows for `run-evals.sh`. |
 | `shot.sh "<caption>"` | Screenshot, posted to Mattermost `galaxy-tab-s7` (`BRAY_MM_CHANNEL` overrides). Prints the PNG path. |
 | `lib.sh` | Shared helpers (source it). |
 | `chat_parse.py` | Turns a UI dump into chat.sh's JSON line (used by `chat.sh`, importable by tests). |
-| `tests/` | Offline tests, no tablet needed: `tests/test_lock.sh`, `python3 -I tests/test_chat_parse.py`, `python3 -I tests/test_eval_grade.py`. |
+| `tests/` | Offline tests, no tablet needed: `tests/test_lock.sh`, `tests/test_run_evals_approve.sh`, `python3 -I tests/test_chat_parse.py`, `python3 -I tests/test_eval_grade.py`. |
 
 ## chat.sh output
 
@@ -32,6 +32,10 @@ Tailscale relay `localhost:5599`). Never hard-code the serial.
   `tool-used-chip` chips (`used <name> · …`) and `tool-error-block`s (`<name> failed`), sorted
   by screen position. A tool with a registered TalentUI renders its own UI instead of a chip and
   does **not** show up here unless that UI also exposes the name.
+- `approvals`: every Bray approval dialog answered during the run, in order:
+  `{"title","message","choice":"allow"|"deny","x","y","screenshot"}`. Only dialogs in PocketPal Bray's
+  own package whose buttons read exactly Allow / Deny are answered — never Shizuku's permission
+  dialog ("Allow all the time"), which must be answered by hand once.
 - On failure `ok` is `false` and an `error` field says why (`tablet locked or asleep — Bo must unlock`,
   `pal not found: X`, `timed out …`, `model not loaded …`, `device lock busy …`). The JSON line is
   printed in every case, including a lock timeout (exit 75).

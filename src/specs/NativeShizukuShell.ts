@@ -17,6 +17,11 @@ export interface Spec extends TurboModule {
    * `{"exitCode":number,"stdout":string,"stderr":string,"timedOut":boolean}`.
    */
   exec(command: string, timeoutMs: number): Promise<string>;
+  /**
+   * Launcher apps with their user-visible labels (resolved by the shell-uid
+   * service's PackageManager). JSON `[{"label":string,"package":string}]`.
+   */
+  listApps(): Promise<string>;
 }
 
 export default (Platform.OS === 'android'

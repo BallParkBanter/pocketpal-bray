@@ -134,6 +134,30 @@ class ShizukuShellModule(reactContext: ReactApplicationContext) :
     }
   }
 
+  override fun listApps(promise: Promise) {
+    worker.execute {
+      try {
+        if (!running()) {
+          promise.reject("SHIZUKU_NOT_RUNNING", "Shizuku isn't running")
+          return@execute
+        }
+        if (!granted()) {
+          promise.reject("SHIZUKU_NO_PERMISSION", "Shizuku permission not granted")
+          return@execute
+        }
+        val svc = bind() ?: run {
+          promise.reject("SHIZUKU_BIND_TIMEOUT", "Shizuku shell service did not start in 10 s")
+          return@execute
+        }
+        promise.resolve(svc.listApps())
+      } catch (e: Throwable) {
+        Log.w(TAG, "listApps failed", e)
+        service = null
+        promise.reject("SHIZUKU_EXEC", e.message ?: e.javaClass.simpleName, e)
+      }
+    }
+  }
+
   /** Binds the UserService if needed; waits up to 10 s. Worker thread only. */
   @Synchronized
   private fun bind(): IShellService? {

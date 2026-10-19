@@ -32,12 +32,20 @@ def grade(case, result):
 
 def _grade(case, result):
     """Never raises: any error while grading is a FAIL.
-    -> (status, reason). Skips never reach the denominator (caller's job)."""
-    if case.get("needs_approval"):
-        # TODO(later task): drive the Allow/Deny dialog, then grade these normally.
-        return SKIP, "needs_approval: approval handling not implemented yet"
+    -> (status, reason). SKIP is no longer produced (kept for the CLI contract)."""
     if not result.get("ok"):
         return FAIL, "not ok: " + str(result.get("error") or "no error given")
+    # Approval hook: run-evals.sh runs needs_approval cases with
+    # `chat.sh --approve allow`, which taps Allow on Bray's Allow/Deny dialog and
+    # lists every dialog it answered in result["approvals"]. Every other case
+    # runs with the default --approve deny, so a dialog there is a FAIL (and
+    # was denied, so nothing changed).
+    approvals = result.get("approvals") or []
+    if case.get("needs_approval"):
+        if not any(a.get("choice") == "allow" for a in approvals):
+            return FAIL, "needs_approval: no approval dialog appeared"
+    elif approvals:
+        return FAIL, "unexpected approval dialog (denied): %s" % (approvals[0].get("message") or approvals[0].get("title"))
     resp = result.get("response") or ""
     if not re.search(case["expect_regex"], resp, re.IGNORECASE):
         return FAIL, "regex /%s/ did not match" % case["expect_regex"]
