@@ -27,6 +27,23 @@ Chat with language models, give them a voice, and let them use tools — all on-
 
 </div>
 
+> ## PocketPal Bray (this fork)
+>
+> **PocketPal Bray** is a personal fork of [a-ghorbani/pocketpal-ai](https://github.com/a-ghorbani/pocketpal-ai) (MIT) for one Galaxy Tab S7.
+> It installs next to the stock app as `com.pocketpalai.bray` ("PocketPal Bray") and adds:
+>
+> - **Tablet tools** through [Shizuku](https://shizuku.rikka.app/) (Shizuku must be running): `tablet_status`, `tablet_set_brightness`,
+>   `tablet_open_app`, `tablet_list_files`, `tablet_shell`. Anything that changes something asks Allow/Deny first; a blocklist
+>   refuses commands that could cut the network or reboot.
+> - **Offline notes**: `search_notes` and `read_note` over a copy of my Joplin notes, pushed to the tablet every 6 h by
+>   `scripts/bray/push-notes.sh` (systemd user timer, sensitive notes excluded).
+> - **MCP client** (opt-in): add Streamable-HTTP MCP servers in settings; each tool becomes an `mcp_<server>_<tool>` talent.
+> - A **"Bray" Pal**, seeded on first launch, with the tablet and notes tools.
+> - An on-device eval harness in `device/` (`device/run-evals.sh`).
+>
+> Releases: [GitHub releases](https://github.com/BallParkBanter/pocketpal-bray/releases) (APK `app-prod-release.apk`, track with Obtainium).
+> Build: `scripts/bray/build-release.sh` (needs your own keystore in `~/.config/pocketpal-bray/`). Everything below is the upstream README.
+
 ---
 
 ## Why PocketPal AI?
