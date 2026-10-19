@@ -21,6 +21,18 @@ import {
 } from '../index';
 import type {TalentResult, ToolDefinition} from '../types';
 
+// Bray fork: Bray registers extra talents (tablet_*, ...); these counts are
+// about the five upstream talents only.
+const UPSTREAM_TALENTS = [
+  'render_html',
+  'calculate',
+  'datetime',
+  'web_search',
+  'read_url',
+];
+const upstreamOnly = <T extends {function: {name: string}}>(s: T[]): T[] =>
+  s.filter(x => UPSTREAM_TALENTS.includes(x.function.name));
+
 describe('PACT cleanup: result-keyed metadata by call ID', () => {
   it('two render_html calls with same talent name produce separate TalentResult entries', async () => {
     const engine = new RenderHtmlEngine();
@@ -142,9 +154,11 @@ describe('PACT cleanup: deriveToolSchemas()', () => {
     expect(talentRegistry.getAll()).toHaveLength(0);
 
     const schemas = deriveToolSchemas();
-    expect(schemas).toHaveLength(5);
+    expect(upstreamOnly(schemas)).toHaveLength(5);
 
-    const names = schemas.map(s => s.function.name).sort();
+    const names = upstreamOnly(schemas)
+      .map(s => s.function.name)
+      .sort();
     expect(names).toEqual([
       'calculate',
       'datetime',
@@ -175,7 +189,7 @@ describe('PACT cleanup: deriveToolSchemas()', () => {
       tool_choice: 'auto' as const,
       jinja: true,
     };
-    expect(completionSettings.tools).toHaveLength(5);
+    expect(upstreamOnly(completionSettings.tools)).toHaveLength(5);
     expect(completionSettings.tools[0].type).toBe('function');
   });
 });

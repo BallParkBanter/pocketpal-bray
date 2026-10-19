@@ -18,6 +18,18 @@ import {
 } from '../index';
 import type {TalentEngine, TalentResult, ToolDefinition} from '../types';
 
+// Bray fork: Bray registers extra talents (tablet_*, ...); these counts are
+// about the five upstream talents only.
+const UPSTREAM_TALENTS = [
+  'render_html',
+  'calculate',
+  'datetime',
+  'web_search',
+  'read_url',
+];
+const upstreamOnly = <T extends {function: {name: string}}>(s: T[]): T[] =>
+  s.filter(x => UPSTREAM_TALENTS.includes(x.function.name));
+
 describe('PACT vocabulary audit', () => {
   describe('TalentEngine interface contract', () => {
     const engines: TalentEngine[] = [
@@ -126,7 +138,7 @@ describe('PACT vocabulary audit', () => {
 
     it('returns ToolDefinition array for all registered engines', () => {
       const schemas = deriveToolSchemas();
-      expect(schemas).toHaveLength(5);
+      expect(upstreamOnly(schemas)).toHaveLength(5);
       const names = schemas.map(s => s.function.name);
       expect(names).toContain('render_html');
       expect(names).toContain('calculate');
@@ -140,7 +152,7 @@ describe('PACT vocabulary audit', () => {
       // registerDefaultTalents internally.
       expect(talentRegistry.has('render_html')).toBe(false);
       const schemas = deriveToolSchemas();
-      expect(schemas).toHaveLength(5);
+      expect(upstreamOnly(schemas)).toHaveLength(5);
       expect(talentRegistry.has('render_html')).toBe(true);
     });
   });
