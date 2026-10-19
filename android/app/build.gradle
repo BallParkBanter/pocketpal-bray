@@ -87,7 +87,7 @@ android {
 
     namespace "com.pocketpal"
     defaultConfig {
-        applicationId "com.pocketpalai"
+        applicationId "com.pocketpalai.bray"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 152
@@ -113,15 +113,16 @@ android {
             keyPassword 'android'
         }
         release {
-            // Read signing credentials from .env file or environment variables
-            def releaseStorePassword = project.env.get("APP_RELEASE_STORE_PASSWORD") ?: System.getenv("APP_RELEASE_STORE_PASSWORD")
-            def releaseKeyPassword = project.env.get("APP_RELEASE_KEY_PASSWORD") ?: System.getenv("APP_RELEASE_KEY_PASSWORD")
+            // Bray fork: keystore path and passwords come from the environment only.
+            def brayKeystore = System.getenv("BRAY_KEYSTORE")
+            def brayStorePass = System.getenv("BRAY_STORE_PASS")
+            def brayKeyPass = System.getenv("BRAY_KEY_PASS")
 
-            if (releaseStorePassword && releaseKeyPassword) {
-                storeFile file("pocketpal-release-key.keystore")
-                storePassword releaseStorePassword
-                keyAlias "pocketpal_key_alias"
-                keyPassword releaseKeyPassword
+            if (brayKeystore && brayStorePass && brayKeyPass) {
+                storeFile file(brayKeystore)
+                storePassword brayStorePass
+                keyAlias "bray"
+                keyPassword brayKeyPass
             }
         }
     }
