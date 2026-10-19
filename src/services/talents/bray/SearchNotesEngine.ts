@@ -10,18 +10,24 @@ import {
 } from './NotesStore';
 
 const SNIPPET_CHARS = 120;
+/** The best hit gets a longer excerpt so a small model can often answer without a second call. */
+const TOP_SNIPPET_CHARS = 300;
 
-export function snippetOf(body: string | null, terms: string[] = []): string {
+export function snippetOf(
+  body: string | null,
+  terms: string[] = [],
+  chars: number = SNIPPET_CHARS,
+): string {
   const text = body ?? '';
   const pos = matchPosition(text, terms);
   // Match near the start: first chars. Otherwise a window around the match.
-  const from = pos > SNIPPET_CHARS ? pos - 40 : 0;
+  const from = pos > chars ? pos - 40 : 0;
   return text
-    .slice(from, from + SNIPPET_CHARS * 3)
+    .slice(from, from + chars * 3)
     .replace(from === 0 ? /^#+\s.*$/m : /^$/, '') // the heading usually repeats the title
     .replace(/\s+/g, ' ')
     .trim()
-    .slice(0, SNIPPET_CHARS);
+    .slice(0, chars);
 }
 
 export class SearchNotesEngine implements TalentEngine {
@@ -52,6 +58,7 @@ export class SearchNotesEngine implements TalentEngine {
       const snippet = snippetOf(
         await this.store.readBody(note.id),
         this.store.lastTerms,
+        i === 0 ? TOP_SNIPPET_CHARS : SNIPPET_CHARS,
       );
       lines.push(
         `${i + 1}. ${note.title} (${note.folder}) [id: ${note.id}]` +
