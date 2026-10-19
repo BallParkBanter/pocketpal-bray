@@ -199,3 +199,21 @@ describe('rankNotes (IDF)', () => {
     expect(tokenize('café — “quoted”')).toEqual(['café', 'quoted']);
   });
 });
+
+describe('query-focused excerpts', () => {
+  const body = `${'intro line. '.repeat(200)}\nBatting Cage plug is a ZEN14 outlet.\n${'tail. '.repeat(100)}`;
+  it('search snippet shows the part around the match; read_note keeps head + match', async () => {
+    present();
+    BODIES['/ext/notes-db/notes/aaa.md'] = body;
+    const store = new NotesStore();
+    const s = await new SearchNotesEngine(store).execute({
+      query: 'batting cage',
+    });
+    expect(s.summary).toContain('ZEN14');
+    const r = await new ReadNoteEngine(store).execute({id: 'aaa'});
+    expect(r.summary.length).toBeLessThanOrEqual(MAX_TOOL_CHARS);
+    expect(r.summary.startsWith('Batting Cage\nintro line.')).toBe(true);
+    expect(r.summary).toContain('ZEN14 outlet');
+    expect(r.summary.endsWith('…[truncated]')).toBe(true);
+  });
+});

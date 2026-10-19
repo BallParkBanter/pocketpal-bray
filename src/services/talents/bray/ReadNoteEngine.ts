@@ -1,8 +1,9 @@
 import {TalentEngine, TalentResult, ToolDefinition} from '../types';
 import {
+  MAX_TOOL_CHARS,
   NOTES_MISSING_MESSAGE,
   NotesStore,
-  clip,
+  focusClip,
   notesStore,
   rankNotes,
 } from './NotesStore';
@@ -46,7 +47,14 @@ export class ReadNoteEngine implements TalentEngine {
       return {type: 'error', summary, errorMessage: summary};
     }
     const meta = index.notes.find(n => n.id === noteId)!;
-    return {type: 'text', summary: clip(`${meta.title}\n${body.trim()}`)};
+    return {
+      type: 'text',
+      summary: `${meta.title}\n${focusClip(
+        body.trim(),
+        this.store.lastTerms,
+        MAX_TOOL_CHARS - meta.title.length - 1,
+      )}`,
+    };
   }
 
   toToolDefinition(): ToolDefinition {

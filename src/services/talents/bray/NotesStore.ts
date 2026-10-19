@@ -55,6 +55,57 @@ export function clip(text: string, max: number = MAX_TOOL_CHARS): string {
 }
 
 /**
+ * Position of the rarest query term (fewest occurrences, > 0) in the body, or -1.
+ * Used to show the part of a long note that actually matches the search.
+ */
+export function matchPosition(body: string, terms: string[]): number {
+  const lower = body.toLowerCase();
+  let best = -1;
+  let bestCount = Infinity;
+  for (const term of terms) {
+    const pos = lower.indexOf(term);
+    if (pos < 0) {
+      continue;
+    }
+    let count = 1;
+    for (let p = lower.indexOf(term, pos + 1); p >= 0 && count < 50; ) {
+      count++;
+      p = lower.indexOf(term, p + 1);
+    }
+    if (count < bestCount) {
+      bestCount = count;
+      best = pos;
+    }
+  }
+  return best;
+}
+
+/** Like clip(), but when the note is too long, keep the head plus the part around the match. */
+export function focusClip(
+  body: string,
+  terms: string[],
+  max: number = MAX_TOOL_CHARS,
+): string {
+  if (body.length <= max) {
+    return body;
+  }
+  const pos = terms.length ? matchPosition(body, terms) : -1;
+  const head = 300;
+  if (pos < head) {
+    return clip(body, max);
+  }
+  const bridge = '\n…\n';
+  const room = max - head - bridge.length - TRUNCATION_MARKER.length;
+  const start = Math.max(head, pos - 150);
+  return (
+    body.slice(0, head) +
+    bridge +
+    body.slice(start, start + room) +
+    TRUNCATION_MARKER
+  );
+}
+
+/**
  * Rank notes for a query. Per matched term: dampened count x IDF (log(N/df)),
  * plus a bonus when the term is in the title; the total is multiplied up when
  * every (known) query term matched. Pure; no I/O. This deliberately replaces
@@ -121,6 +172,8 @@ export class NotesStore {
   private index: NotesIndex | null = null;
   private stamp = '';
   private loading: Promise<NotesIndex | null> | null = null;
+  /** Terms of the latest search, so read_note can show the matching part of a long note. */
+  lastTerms: string[] = [];
 
   private get dir(): string {
     return `${RNFS.ExternalDirectoryPath}/notes-db`;

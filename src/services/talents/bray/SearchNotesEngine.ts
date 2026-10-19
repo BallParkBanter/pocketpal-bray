@@ -3,15 +3,22 @@ import {
   NOTES_MISSING_MESSAGE,
   NotesStore,
   clip,
+  matchPosition,
+  tokenize,
   notesStore,
   rankNotes,
 } from './NotesStore';
 
 const SNIPPET_CHARS = 120;
 
-export function snippetOf(body: string | null): string {
-  return (body ?? '')
-    .replace(/^#+\s.*$/m, '') // the heading usually repeats the title
+export function snippetOf(body: string | null, terms: string[] = []): string {
+  const text = body ?? '';
+  const pos = matchPosition(text, terms);
+  // Match near the start: first chars. Otherwise a window around the match.
+  const from = pos > SNIPPET_CHARS ? pos - 40 : 0;
+  return text
+    .slice(from, from + SNIPPET_CHARS * 3)
+    .replace(from === 0 ? /^#+\s.*$/m : /^$/, '') // the heading usually repeats the title
     .replace(/\s+/g, ' ')
     .trim()
     .slice(0, SNIPPET_CHARS);
@@ -33,6 +40,7 @@ export class SearchNotesEngine implements TalentEngine {
     if (!index) {
       return {type: 'text', summary: NOTES_MISSING_MESSAGE};
     }
+    this.store.lastTerms = tokenize(query);
     const hits = rankNotes(index, query, 5);
     if (hits.length === 0) {
       return {type: 'text', summary: `No notes matched "${query}".`};
@@ -40,7 +48,10 @@ export class SearchNotesEngine implements TalentEngine {
     const lines: string[] = [];
     for (let i = 0; i < hits.length; i++) {
       const {note} = hits[i];
-      const snippet = snippetOf(await this.store.readBody(note.id));
+      const snippet = snippetOf(
+        await this.store.readBody(note.id),
+        this.store.lastTerms,
+      );
       lines.push(
         `${i + 1}. ${note.title} (${note.folder}) [id: ${note.id}]` +
           (snippet ? `\n${snippet}` : ''),
