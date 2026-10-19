@@ -45,6 +45,7 @@ export class SearchNotesEngine implements TalentEngine {
     if (hits.length === 0) {
       return {type: 'text', summary: `No notes matched "${query}".`};
     }
+    this.store.lastHitIds = hits.map(h => h.note.id);
     const lines: string[] = [];
     for (let i = 0; i < hits.length; i++) {
       const {note} = hits[i];

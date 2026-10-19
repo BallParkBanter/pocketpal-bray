@@ -174,6 +174,8 @@ export class NotesStore {
   private loading: Promise<NotesIndex | null> | null = null;
   /** Terms of the latest search, so read_note can show the matching part of a long note. */
   lastTerms: string[] = [];
+  /** Ids of the latest search results, so a small model can say read_note({id: "2"}). */
+  lastHitIds: string[] = [];
 
   private get dir(): string {
     return `${RNFS.ExternalDirectoryPath}/notes-db`;

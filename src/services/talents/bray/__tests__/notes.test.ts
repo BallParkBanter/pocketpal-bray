@@ -217,3 +217,14 @@ describe('query-focused excerpts', () => {
     expect(r.summary.endsWith('…[truncated]')).toBe(true);
   });
 });
+
+describe('read_note by result number', () => {
+  it('maps "2" to the second hit of the last search', async () => {
+    present();
+    const store = new NotesStore();
+    await new SearchNotesEngine(store).execute({query: 'batting cage plug'});
+    const r = await new ReadNoteEngine(store).execute({id: '2'});
+    expect(r.type).toBe('text');
+    expect(r.summary.startsWith('HA devices')).toBe(true);
+  });
+});

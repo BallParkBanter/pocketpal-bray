@@ -26,7 +26,12 @@ export class ReadNoteEngine implements TalentEngine {
       return {type: 'text', summary: NOTES_MISSING_MESSAGE};
     }
 
-    let noteId = id && index.notes.some(n => n.id === id) ? id : '';
+    // Small models often pass the result's list number ("2") instead of its id.
+    const byNumber = /^\d{1,2}$/.test(id)
+      ? this.store.lastHitIds[Number(id) - 1]
+      : '';
+    let noteId =
+      byNumber || (id && index.notes.some(n => n.id === id) ? id : '');
     if (!noteId && title) {
       const lower = title.toLowerCase();
       noteId =
