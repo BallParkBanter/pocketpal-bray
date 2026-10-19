@@ -15,19 +15,62 @@ import {runShell} from './shell';
 
 /**
  * Commands that could cut the tablet off the network (it is Wi-Fi only) or
- * wreck it. Rejected outright, without even asking Bo.
+ * wreck it. Rejected outright, without even asking Bo. Over-blocking is fine:
+ * this is a tripwire in front of the approval dialog, not the only guard.
+ * Patterns are matched against normalize(command), never the raw text.
  */
-// The brief's list (svc wifi, cmd wifi, reboot, airplane, pm uninstall,
-// rm -rf /) plus what Gemma actually tried on the tablet for "Turn off wifi":
-// `settings put global wifi_enabled 0`. Also the other ways to drop the
-// network or the device: wifi_on, airplane via cmd connectivity, interface
-// down, shutdown, svc power, disabling packages (e.g. Tailscale).
-export const BLOCKLIST =
-  /svc wifi|cmd wifi|wifi_enabled|wifi_on|reboot|shutdown|svc power|airplane|cmd connectivity|settings put global (wifi|airplane)|pm uninstall|pm disable|rm -rf \/|ip link set\b.*\bdown|ifconfig\b.*\bdown/i;
+export const BLOCK_PATTERNS: RegExp[] = [
+  // Whole words anywhere (wifi_enabled, airplane_mode_on, wlan0 included).
+  /\b(svc|wifi\w*|wlan\d*|airplane\w*|connectivity|reboot|shutdown|uninstall)\b/i,
+  /\bpm\s+(disable|uninstall|hide|suspend)/i,
+  /\brm\s+-\w*[rf]\w*\s+\/(\s|$)/i,
+  // Any rm aimed at / or /* whatever the flags (rm -r -f /, rm -rf /*).
+  /\brm\b[^;]*\s\/\*?(\s|;|$)/i,
+  // Recursive rm of a top-level path (/sdcard, /storage/, /data ...).
+  /\brm\s+-\w*r\w*[^;]*\s\/[^/\s;]*\/?\*?(\s|;|$)/i,
+  /force-stop\s+com\.tailscale/i,
+  /\bip\s+(link|route|addr)/i,
+  /\bifconfig\b/i,
+  /\bsettings\s+put\s+global\b/i,
+];
 export const BLOCKED_MSG = 'Blocked: this could cut the tablet off the network';
+export const MULTILINE_MSG =
+  'Refused: send one single-line command (multi-line commands are not allowed)';
+
+/**
+ * Undo the cheap disguises before matching: quotes and backslashes go
+ * (`svc "wifi"`, `w\ifi`), and newlines / ; & | become separators.
+ */
+export function normalize(command: string): string {
+  return command
+    .replace(/['"`\\]/g, '')
+    .replace(/[\r\n;&|]+/g, ' ; ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
 
 export function isBlocked(command: string): boolean {
-  return BLOCKLIST.test(command.replace(/\s+/g, ' '));
+  const n = normalize(command);
+  return BLOCK_PATTERNS.some(rx => rx.test(n));
+}
+
+/** What the dialog shows: every space and odd character made visible. */
+export function visibleWhitespace(command: string): string {
+  return Array.from(command)
+    .map(ch => {
+      if (ch === ' ') {
+        return '·';
+      }
+      if (ch === '\t') {
+        return '⇥';
+      }
+      const code = ch.codePointAt(0)!;
+      if (/\s/.test(ch) || code < 0x20 || code === 0x7f) {
+        return `\\u{${code.toString(16)}}`;
+      }
+      return ch;
+    })
+    .join('');
 }
 
 /** tablet_shell — any shell command, always approved by Bo first. */
@@ -45,7 +88,13 @@ export class TabletShellEngine implements TalentEngine {
     if (isBlocked(command)) {
       return errorResult(BLOCKED_MSG);
     }
-    if (!(await askApproval('Run a shell command', command))) {
+    // A dialog can hide extra lines; only single-line commands are offered.
+    if (/[\r\n\u2028\u2029]/.test(command)) {
+      return errorResult(MULTILINE_MSG);
+    }
+    if (
+      !(await askApproval('Run a shell command', visibleWhitespace(command)))
+    ) {
       return errorResult(`Bo declined: run "${command}"`);
     }
     try {

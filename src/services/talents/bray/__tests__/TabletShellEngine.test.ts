@@ -1,4 +1,10 @@
-import {isBlocked, TabletShellEngine} from '../TabletShellEngine';
+import {
+  isBlocked,
+  MULTILINE_MSG,
+  normalize,
+  TabletShellEngine,
+  visibleWhitespace,
+} from '../TabletShellEngine';
 import {askApproval} from '../approval';
 import {MAX_TOOL_CHARS} from '../common';
 import {runShell, ShizukuNotRunningError} from '../shell';
@@ -33,6 +39,27 @@ describe('isBlocked', () => {
     ['ifconfig wlan0 down'],
     ['svc power shutdown'],
     ['pm disable-user com.tailscale.ipn'],
+    // Review fix round 1: bypasses of the first regex, run by the reviewer.
+    ['cmd -w wifi set-wifi-enabled disabled'],
+    ['svc "wifi" disable'],
+    ['rm -fr /'],
+    ['am force-stop com.tailscale.ipn'],
+    ['cmd -w wifi\nset-wifi-enabled disabled'],
+    // and neighbours of those
+    ["s'v'c wi\\fi disable"],
+    ['echo x; svc wifi disable'],
+    ['true && reboot'],
+    ['true | reboot'],
+    ['rm -r -f /'],
+    ['rm -rf /*'],
+    ['cmd wifi set-wifi-enabled disabled'],
+    ['ip route del default'],
+    ['ip addr flush dev wlan0'],
+    ['pm hide com.tailscale.ipn'],
+    ['pm suspend com.tailscale.ipn'],
+    ['pm uninstall --user 0 com.tailscale.ipn'],
+    ['settings put global mobile_data 0'],
+    ['dumpsys wifi'], // over-blocking is accepted
   ])('blocks %p', cmd => {
     expect(isBlocked(cmd)).toBe(true);
   });
@@ -44,6 +71,21 @@ describe('isBlocked', () => {
     ['rm /sdcard/x.txt'],
   ])('allows %p', cmd => {
     expect(isBlocked(cmd)).toBe(false);
+  });
+});
+
+describe('normalize', () => {
+  it('drops quotes and backslashes and splits on separators', () => {
+    expect(normalize('svc "wifi"\\ disable')).toBe('svc wifi disable');
+    expect(normalize('a\nb;c&&d|e')).toBe('a ; b ; c ; d ; e');
+  });
+});
+
+describe('visibleWhitespace', () => {
+  it('shows spaces, tabs and other control characters', () => {
+    expect(visibleWhitespace('ls -la')).toBe('ls·-la');
+    expect(visibleWhitespace('a\tb')).toBe('a⇥b');
+    expect(visibleWhitespace('a\u00a0b\rc')).toBe('a\\u{a0}b\\u{d}c');
   });
 });
 
@@ -72,6 +114,22 @@ describe('TabletShellEngine', () => {
     expect(r.summary).toBe(BLOCKED);
     expect(mockAsk).not.toHaveBeenCalled();
     expect(mockRun).not.toHaveBeenCalled();
+  });
+
+  it('refuses multi-line commands without asking', async () => {
+    const r = await engine.execute({command: 'uptime\nid'});
+    expect(r.summary).toBe(MULTILINE_MSG);
+    expect(mockAsk).not.toHaveBeenCalled();
+    expect(mockRun).not.toHaveBeenCalled();
+  });
+
+  it('shows the command with whitespace made visible', async () => {
+    mockAsk.mockResolvedValue(false);
+    await engine.execute({command: 'ls  -la /sdcard'});
+    expect(mockAsk).toHaveBeenCalledWith(
+      'Run a shell command',
+      'ls··-la·/sdcard',
+    );
   });
 
   it('always asks, showing the exact command', async () => {
