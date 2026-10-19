@@ -38,3 +38,28 @@ Appended by `device/run-evals.sh`. Cases live in `device/evals/cases.jsonl`.
 | 2026-10-19 16:11 | tab-shell-wifi-blocked | PASS | 8.85 | 17397 | tablet_shell | Bo, I attempted to turn off the Wi-Fi using a shell command, but the system blo... |
 | 2026-10-19 16:15 | tab-open-libretube | PASS | 0.0 | - | tablet_open_app | Opened LibreTube (com.github.libretube). It is now on screen. |
 | 2026-10-19 16:17 | tab-open-typo | PASS | 7.76 | 20738 | tablet_open_app | The LibreTube app has been opened. |
+| 2026-10-19 16:44 | base-arithmetic | FAIL | - | - | - | pal still active after choosing No Pal |
+| 2026-10-19 16:45 | base-factual | FAIL | - | - | - | pal still active after choosing No Pal |
+| 2026-10-19 16:46 | base-summary | FAIL | - | - | - | pal still active after choosing No Pal |
+| 2026-10-19 16:46 | base-followup | FAIL | - | - | - | setup failed: pal still active after choosing No Pal |
+| 2026-10-19 16:47 | mcp-joplin-search | FAIL | - | - | - | pal not selected: MCP Pal |
+| 2026-10-19 16:48 | mcp-joplin-navidrome | FAIL | 7.76 | 20738 | tablet_open_app | The LibreTube app has been opened. |
+| 2026-10-19 16:52 | notes-batting-cage | FAIL | 7.76 | 20738 | tablet_open_app | The LibreTube app has been opened. |
+| 2026-10-19 16:53 | notes-ac-filter | PASS | 8.54 | 33211 | search_notes,read_note | The size of the AC filter is 18 x 20 x 1. |
+| 2026-10-19 16:55 | notes-telluride-lx | PASS | 7.86 | 46054 | search_notes,read_note | The starting price of the base LX trim of the 2025 Kia Telluride is approximate... |
+| 2026-10-19 16:58 | notes-air-return | PASS | 7.98 | 31769 | search_notes,read_note | The air return size for the master bathroom is 11.5 x 7.75. |
+| 2026-10-19 17:01 | notes-read-by-title | PASS | 7.7 | 49317 | search_notes,read_note | The approximate price for the S trim of the Kia Telluride is $39,390. |
+| 2026-10-19 17:04 | tab-status-battery | FAIL | - | - | - | pal not selected: Tablet Pal |
+| 2026-10-19 17:05 | tab-status-wifi | FAIL | - | - | - | pal not found: Tablet Pal |
+| 2026-10-19 17:06 | tab-status-storage | FAIL | - | - | - | pal not selected: Tablet Pal |
+| 2026-10-19 17:07 | tab-bright-40 | FAIL | - | - | - | pal not found: Tablet Pal |
+| 2026-10-19 17:17 | base-arithmetic | FAIL | - | - | - | pal still active after choosing No Pal |
+| 2026-10-19 17:19 | base-factual | FAIL | - | - | - | pal still active after choosing No Pal |
+| 2026-10-19 17:20 | base-summary | FAIL | - | - | - | pal still active after choosing No Pal |
+| 2026-10-19 17:21 | base-followup | FAIL | - | - | - | setup failed: pal still active after choosing No Pal |
+| 2026-10-19 17:22 | mcp-joplin-search | FAIL | - | - | - | pal not selected: MCP Pal |
+| 2026-10-19 17:24 | mcp-joplin-navidrome | FAIL | - | - | - | pal not found: MCP Pal |
+| 2026-10-19 17:25 | notes-batting-cage | FAIL | - | - | - | pal not found: Notes Pal |
+| 2026-10-19 17:27 | notes-ac-filter | PASS | 8.34 | 30837 | search_notes,read_note | The size of the AC filter is 18 x 20 x 1. |
+
+> 2026-10-19 16:44–17:27: two full runs stopped early. The Pal-picking harness bug (fixed in ebbb656e: the backdrop tap landed on the Lookie row; rows clipped under the tab bar) caused every "pal …" FAIL above; those are harness failures, not model failures. The 16:48/16:52 rows show a stale reply from an earlier chat. The tablet then locked (unplugged, asleep) at ~17:55, so the full run after the fix has not been done yet.
