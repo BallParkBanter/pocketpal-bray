@@ -86,6 +86,10 @@ android {
     compileSdk rootProject.ext.compileSdkVersion
 
     namespace "com.pocketpal"
+    // Bray fork: AIDL for the Shizuku shell UserService (IShellService).
+    buildFeatures {
+        aidl true
+    }
     defaultConfig {
         applicationId "com.pocketpalai.bray"
         minSdkVersion rootProject.ext.minSdkVersion
@@ -238,6 +242,10 @@ dependencies {
 
     // OkHttp for DownloadModule (network requests)
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
+
+    // Bray fork: Shizuku (tablet-control tools run shell commands through it)
+    implementation "dev.rikka.shizuku:api:13.1.5"
+    implementation "dev.rikka.shizuku:provider:13.1.5"
 
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.robolectric:robolectric:4.16")
