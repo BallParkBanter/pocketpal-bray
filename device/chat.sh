@@ -152,31 +152,39 @@ prepare() {
     pal_rx="^$(python3 -I -c 'import re,sys; print(re.escape(sys.argv[1]))' "$PAL")$"   # the title Text node, not the row (its centre can sit under the input bar)
     # Close the sheet by its backdrop, never with BACK (BACK can background
     # the app, which auto-releases the model).
+    # The list shows ~4 rows and its lower part sits behind the message bar, so
+    # pal_rows.py only says "tap" when the title is fully inside the visible window;
+    # otherwise it says which way to scroll. Small slow swipes, re-dumped each time.
     # The "No Pal" row only exists while a Pal is active; absent means none is.
-    # The last rows sit under the message bar (a tap there hits the input),
-    # so scroll the list up first: with few Pals this is a no-op.
-    dev_adb shell input swipe 1280 1150 1280 500 500; sleep 3   # let the fling settle before the dump
-    tap "$pal_rx" || { tap '^Bottom sheet backdrop$'; [[ "$PAL" == "No Pal" ]] || fail "pal not found: $PAL"; }
-    sleep 2
-    # Rows past the 4th sit behind the input bar: the tap above then lands on nothing and
-    # the sheet stays open. Scroll the list to its end and tap again.
-    dump || fail "uiautomator dump failed"
-    if has '^Bottom sheet backdrop$' && [[ "$PAL" != "No Pal" ]]; then
-      local dims w h
-      dims="$(python3 -I - "$XML" <<'PY'
-import re, sys
-import xml.etree.ElementTree as ET
-n = next(ET.parse(sys.argv[1]).getroot().iter("node"))
-m = re.match(r"\[0,0\]\[(\d+),(\d+)\]", n.get("bounds", ""))
-print(m.group(1), m.group(2)) if m else None
-PY
-)"
-      read -r w h <<<"$dims"
-      if [[ -n "${w:-}" && -n "${h:-}" ]]; then
-        dev_adb shell input swipe $((w / 2)) $((h * 78 / 100)) $((w / 2)) $((h * 44 / 100)) 500 >/dev/null; sleep 1
-        tap "$pal_rx" || fail "pal not found after scroll: $PAL"; sleep 2
+    local step act x1 y1 x2 y2 dir=fwd misses=0
+    [[ "$PAL" == "No Pal" ]] && dir=back   # No Pal is the first row
+    for step in 1 2 3 4 5 6 7 8 9 10 11 12; do
+      dump || fail "uiautomator dump failed"
+      if [[ "$PAL" == "No Pal" ]] && ! has '^Pal: '; then   # none active already
+        tap '^Bottom sheet backdrop$'; break
       fi
-    fi
+      read -r act x1 y1 x2 y2 < <(python3 -I "$HERE/pal_rows.py" "$XML" "$pal_rx")
+      case "$act" in
+        tap) dev_adb shell input tap "$x1" "$y1" >/dev/null; break ;;
+        swipe) dev_adb shell input swipe "$x1" "$y1" "$x2" "$y2" 800 >/dev/null ;;
+        missing)
+          misses=$((misses + 1))
+          (( misses == 5 )) && { [[ $dir == fwd ]] && dir=back || dir=fwd; }
+          if (( misses > 9 )); then
+            tap '^Bottom sheet backdrop$'
+            [[ "$PAL" == "No Pal" ]] || fail "pal not found: $PAL"
+            break
+          fi
+          if [[ $dir == fwd ]]; then
+            dev_adb shell input swipe "$x1" "$y1" "$x2" "$y2" 800 >/dev/null
+          else
+            dev_adb shell input swipe "$x2" "$y2" "$x1" "$y1" 800 >/dev/null
+          fi ;;
+        *) fail "pal_rows.py failed" ;;
+      esac
+      sleep 2
+    done
+    sleep 2
     # Verify: the input bar shows "Pal: <name>" while a Pal is active.
     dump || fail "uiautomator dump failed"
     if [[ "$PAL" == "No Pal" ]]; then
