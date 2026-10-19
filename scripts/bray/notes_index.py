@@ -16,6 +16,17 @@ import sys
 from collections import Counter
 
 EXCLUDED_FOLDERS = ("_JopSync Archive", "Bo Notes/Web Crawling")
+# Sensitive notes never leave the mirror. Patterns are matched case-insensitively against
+# the note title and folder path, as whole words (a trailing "s" is allowed: "Passwords").
+EXCLUDE_PATTERNS = [
+    "password", "passwd", "recovery phrase", "seed phrase", "backup code", "2fa", "mfa",
+    "keeper", "api key", "token", "secret", "credential", "ssn", "social security",
+    "bank account", "routing number", "pin", "intimacy", "intimate", "sex",
+]
+_EXCLUDE_RE = re.compile(
+    r"(?<![^\W_])(?:" + "|".join(re.escape(p) for p in EXCLUDE_PATTERNS) + r")s?(?![^\W_])",
+    re.IGNORECASE,
+)
 MAX_DF = 400  # terms present in more notes than this are dropped
 TITLE_WEIGHT = 5
 MIN_LEN = 3
@@ -65,6 +76,10 @@ def is_excluded(folder):
     return any(folder == p or folder.startswith(p + "/") for p in EXCLUDED_FOLDERS)
 
 
+def is_sensitive(title, folder):
+    return bool(_EXCLUDE_RE.search(title) or _EXCLUDE_RE.search(folder))
+
+
 def iter_mirror(mirror_dir):
     for root, dirs, files in os.walk(mirror_dir):
         dirs[:] = sorted(d for d in dirs if d != ".git")
@@ -76,7 +91,7 @@ def iter_mirror(mirror_dir):
 def build(mirror_dir, out_dir):
     notes_dir = os.path.join(out_dir, "notes")
     os.makedirs(notes_dir, exist_ok=True)
-    notes, postings = [], {}
+    notes, postings, dropped = [], {}, []
     for path in iter_mirror(mirror_dir):
         with open(path, encoding="utf-8", errors="replace") as fh:
             meta, body = parse_note(fh.read())
@@ -90,6 +105,9 @@ def build(mirror_dir, out_dir):
         if is_excluded(folder):
             continue
         title = meta.get("title") or os.path.splitext(os.path.basename(path))[0]
+        if is_sensitive(title, folder):
+            dropped.append(title)
+            continue
         with open(os.path.join(notes_dir, nid + ".md"), "w", encoding="utf-8") as out:
             out.write(body)
         counts = Counter(tokens(body))
@@ -110,6 +128,10 @@ def build(mirror_dir, out_dir):
     }
     with open(os.path.join(out_dir, "index.json"), "w", encoding="utf-8") as fh:
         json.dump(index, fh, ensure_ascii=False, separators=(",", ":"))
+    # Titles only, never bodies.
+    with open(os.path.join(out_dir, "excluded-titles.txt"), "w", encoding="utf-8") as fh:
+        fh.write("\n".join(sorted(dropped)) + "\n")
+    build.dropped = dropped
     return len(notes)
 
 
@@ -118,7 +140,7 @@ def main(argv):
         print(__doc__, file=sys.stderr)
         return 2
     n = build(argv[1], argv[2])
-    print(f"indexed {n} notes")
+    print(f"indexed {n} notes, excluded {len(build.dropped)} sensitive")
     return 0
 
 
