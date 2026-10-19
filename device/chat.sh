@@ -33,65 +33,7 @@ SHOT=""
 
 # emit <ok 0|1> [error] — the one JSON line, built from the last dump in $XML.
 emit() {
-  python3 -I - "$PROMPT" "$SHOT" "$1" "${2:-}" "$XML" <<'PY'
-import json, re, sys, xml.etree.ElementTree as ET
-prompt, shot, ok, err, path = sys.argv[1], sys.argv[2], sys.argv[3] == "1", sys.argv[4], sys.argv[5]
-out = {"prompt": prompt, "response": "", "tok_s": None, "ttft_ms": None,
-       "tools_used": [], "screenshot": shot or None, "ok": False}
-METRICS = re.compile(r"([\d.]+)ms/token, ([\d.]+) tokens/sec.*?([\d.]+)ms TTFT")
-def bbox(n):
-    m = re.match(r"\[(\d+),(\d+)\]\[(\d+),(\d+)\]", n.get("bounds", ""))
-    return tuple(map(int, m.groups())) if m else None
-def inside(n, b):
-    nb = bbox(n)
-    return bool(nb and b) and b[0] <= nb[0] and b[1] <= nb[1] and nb[2] <= b[2] and nb[3] <= b[3]
-try:
-    root = ET.parse(path).getroot()
-    nodes = list(root.iter("node"))
-except Exception:
-    nodes = []
-# Newest message is first in document order (inverted FlatList).
-footer = next((n for n in nodes if n.get("resource-id") == "footer-timing"
-               and METRICS.search(n.get("text", ""))), None)
-if footer is not None:
-    mtext = footer.get("text", "")
-    m = METRICS.search(mtext)
-    out["tok_s"] = float(m.group(2))
-    out["ttft_ms"] = int(float(m.group(3)))
-    # The assistant bubble's content-desc is "<reply text>, <metrics>".
-    # That desc joins paragraphs with ", " and omits code-block bodies, so when
-    # the whole bubble is on screen rebuild the reply from the text nodes inside
-    # its bounds instead (one per line, code blocks included).
-    bubble = next((n for n in nodes if n.get("content-desc", "").endswith(", " + mtext)), None)
-    if bubble is not None:
-        out["response"] = bubble.get("content-desc")[: -len(", " + mtext)].strip()
-        b = bbox(bubble)
-        header = next((bbox(n) for n in nodes if n.get("resource-id") == "header-view"), None)
-        if b and header and b[1] > header[3]:
-            lines = []
-            for n in nodes:
-                t = n.get("text", "")
-                if t.strip() and n.get("resource-id") != "footer-timing" and inside(n, b):
-                    lines.append(t.rstrip())
-            if lines:
-                out["response"] = "\n".join(lines)
-# ToolUsedChip (testID tool-used-chip) holds a label "used <name>[ · N tokens · Ns]".
-CHIP = re.compile(r"^used ([A-Za-z0-9_.:-]+)(?: · .*)?$")
-tools = []
-for chip in (n for n in nodes if n.get("resource-id") == "tool-used-chip"):
-    for n in nodes:
-        m = CHIP.match(n.get("text", "")) if inside(n, bbox(chip)) else None
-        if m and m.group(1) not in tools:
-            tools.append(m.group(1))
-out["tools_used"] = tools[::-1]  # chronological
-out["ok"] = ok and bool(out["response"]) and out["tok_s"] is not None
-if err:
-    out["error"] = err
-elif ok and not out["ok"]:
-    out["error"] = "reply or metrics not found in UI dump"
-print(json.dumps(out, ensure_ascii=False))
-sys.exit(0 if out["ok"] else 1)
-PY
+  python3 -I "$HERE/chat_parse.py" "$PROMPT" "$SHOT" "$1" "${2:-}" "$XML"
 }
 
 dump() { _dev_ui_xml >"$XML"; }
@@ -236,4 +178,9 @@ run() {
   esac
 }
 
-dev_locked run
+dev_locked run; rc=$?
+# The lock wait timed out before run() started: still honour the one-JSON-line contract.
+if [[ $rc == "$BRAY_LOCK_TIMEOUT_RC" ]]; then
+  emit 0 "device lock busy: waited ${BRAY_LOCK_WAIT}s for $BRAY_LOCK (another agent is driving the tablet)"
+fi
+exit "$rc"

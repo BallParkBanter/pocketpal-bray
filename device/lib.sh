@@ -18,6 +18,15 @@ TABLET_CMD="${TABLET_CMD:-$HOME/projects/galaxy-tab-s7/tablet}"
 BRAY_SHOT_DIR="${BRAY_SHOT_DIR:-/tmp/bray-shots}"
 
 # dev_locked <cmd...> — run cmd while holding the device lock (re-entrant).
+# Exit 75 (BRAY_LOCK_TIMEOUT_RC) if another agent holds it for BRAY_LOCK_WAIT s.
+#
+# The lock fd (9) must never leak into child processes: `tablet status` can
+# start a daemonized `ssh -f -N -L 5599:…` tunnel, and if that inherited fd 9
+# it would hold the lock forever and deadlock every other agent. So cmd runs
+# with `9>&-`: bash moves its own copy of fd 9 to a close-on-exec fd for the
+# duration, so the lock stays held by this subshell but no exec'd program
+# (tablet, ssh, adb, sleep, ...) inherits it. device/tests/test_lock.sh proves it.
+BRAY_LOCK_TIMEOUT_RC=75
 dev_locked() {
   if [[ -n "${BRAY_DEVICE_LOCK_HELD:-}" ]]; then
     "$@"
@@ -27,10 +36,10 @@ dev_locked() {
     exec 9>>"$BRAY_LOCK"
     if ! flock -w "$BRAY_LOCK_WAIT" 9; then
       echo "dev_locked: timed out after ${BRAY_LOCK_WAIT}s waiting for $BRAY_LOCK" >&2
-      exit 75
+      exit "$BRAY_LOCK_TIMEOUT_RC"
     fi
     export BRAY_DEVICE_LOCK_HELD=1
-    "$@"
+    "$@" 9>&-
   )
 }
 

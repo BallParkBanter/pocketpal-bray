@@ -1,0 +1,46 @@
+<?xml version='1.0' encoding='UTF-8' standalone='yes' ?>
+<!-- Modelled on a real PocketPal Bray dump (2026-10-19, Galaxy Tab S7, 1600x2560):
+     inverted FlatList => newest row first in document order; one assistant turn
+     whose steps render top-to-bottom: text, TalentSurface chips (ToolUsedChip:
+     View testID=tool-used-chip > Icon Text glyph + label Text "used <name>[ · N tokens · Ns]";
+     ToolErrorBlock: View testID=tool-error-block > "<name> failed"), final text, footer. -->
+<hierarchy rotation="0">
+  <node index="0" text="" resource-id="com.pocketpalai.bray:id/action_bar_root" class="android.widget.FrameLayout" package="com.pocketpalai.bray" content-desc="" clickable="false" bounds="[0,0][1600,2560]">
+    <node index="0" text="" resource-id="header-view" class="android.view.ViewGroup" package="com.pocketpalai.bray" content-desc="" clickable="false" bounds="[0,0][1600,184]">
+      <node index="0" text="" resource-id="menu-button" class="android.view.ViewGroup" package="com.pocketpalai.bray" content-desc="Open drawer" clickable="true" bounds="[22,76][110,164]" />
+      <node index="1" text="What do my notes say about the batting cage plug?" resource-id="" class="android.widget.TextView" package="com.pocketpalai.bray" content-desc="" clickable="false" bounds="[152,84][486,124]" />
+      <node index="2" text="" resource-id="reset-button" class="android.widget.Button" package="com.pocketpalai.bray" content-desc="" clickable="true" bounds="[1428,80][1508,160]" />
+    </node>
+    <node index="1" text="" resource-id="" class="android.view.ViewGroup" package="com.pocketpalai.bray" content-desc="Let me search your notes., used search_notes · 31 tokens · 2s, used read_note · 18 tokens · 1s, used search_notes · 22 tokens · 1s, read_note failed, The batting cage plug is a Zooz ZEN14 outdoor plug., 112ms/token, 8.91 tokens/sec, 1840ms TTFT" clickable="true" bounds="[40,1500][1512,2240]">
+      <node index="0" text="" resource-id="ai-message" class="android.view.ViewGroup" package="com.pocketpalai.bray" content-desc="" clickable="false" bounds="[40,1520][1512,1563]">
+        <node index="0" text="Let me search your notes." resource-id="" class="android.widget.TextView" package="com.pocketpalai.bray" content-desc="" clickable="false" bounds="[40,1520][1512,1563]" />
+      </node>
+      <node index="1" text="" resource-id="tool-used-chip" class="android.view.ViewGroup" package="com.pocketpalai.bray" content-desc="" clickable="false" bounds="[40,1580][620,1610]">
+        <node index="0" text="󰖷" resource-id="tool-used-chip-icon" class="android.widget.TextView" package="com.pocketpalai.bray" content-desc="" clickable="false" bounds="[40,1582][56,1608]" />
+        <node index="1" text="used search_notes · 31 tokens · 2s" resource-id="" class="android.widget.TextView" package="com.pocketpalai.bray" content-desc="" clickable="false" bounds="[62,1582][620,1608]" />
+      </node>
+      <node index="2" text="" resource-id="tool-used-chip" class="android.view.ViewGroup" package="com.pocketpalai.bray" content-desc="" clickable="false" bounds="[40,1630][580,1660]">
+        <node index="0" text="󰖷" resource-id="tool-used-chip-icon" class="android.widget.TextView" package="com.pocketpalai.bray" content-desc="" clickable="false" bounds="[40,1632][56,1658]" />
+        <node index="1" text="used read_note · 18 tokens · 1s" resource-id="" class="android.widget.TextView" package="com.pocketpalai.bray" content-desc="" clickable="false" bounds="[62,1632][580,1658]" />
+      </node>
+      <node index="3" text="" resource-id="tool-used-chip" class="android.view.ViewGroup" package="com.pocketpalai.bray" content-desc="" clickable="false" bounds="[40,1680][620,1710]">
+        <node index="0" text="󰖷" resource-id="tool-used-chip-icon" class="android.widget.TextView" package="com.pocketpalai.bray" content-desc="" clickable="false" bounds="[40,1682][56,1708]" />
+        <node index="1" text="used search_notes · 22 tokens · 1s" resource-id="" class="android.widget.TextView" package="com.pocketpalai.bray" content-desc="" clickable="false" bounds="[62,1682][620,1708]" />
+      </node>
+      <node index="4" text="" resource-id="tool-error-block" class="android.view.ViewGroup" package="com.pocketpalai.bray" content-desc="" clickable="false" bounds="[40,1730][900,1810]">
+        <node index="0" text="󰀦" resource-id="tool-error-block-icon" class="android.widget.TextView" package="com.pocketpalai.bray" content-desc="" clickable="false" bounds="[40,1732][56,1758]" />
+        <node index="1" text="read_note failed" resource-id="" class="android.widget.TextView" package="com.pocketpalai.bray" content-desc="" clickable="false" bounds="[62,1732][400,1758]" />
+        <node index="2" text="Note not found" resource-id="tool-error-block-message" class="android.widget.TextView" package="com.pocketpalai.bray" content-desc="" clickable="false" bounds="[62,1762][900,1800]" />
+      </node>
+      <node index="5" text="" resource-id="ai-message" class="android.view.ViewGroup" package="com.pocketpalai.bray" content-desc="" clickable="false" bounds="[40,1830][1512,2164]">
+        <node index="0" text="The batting cage plug is a Zooz ZEN14 outdoor plug." resource-id="" class="android.widget.TextView" package="com.pocketpalai.bray" content-desc="" clickable="false" bounds="[40,1830][1512,1873]" />
+      </node>
+      <node index="6" text="" resource-id="playbutton-x" class="android.widget.Button" package="com.pocketpalai.bray" content-desc="Play message" clickable="true" bounds="[40,2184][72,2216]" />
+      <node index="7" text="112ms/token, 8.91 tokens/sec, 1840ms TTFT" resource-id="footer-timing" class="android.widget.TextView" package="com.pocketpalai.bray" content-desc="" clickable="false" bounds="[124,2185][515,2215]" />
+    </node>
+    <node index="2" text="" resource-id="" class="android.view.ViewGroup" package="com.pocketpalai.bray" content-desc="What do my notes say about the batting cage plug?" clickable="true" bounds="[900,1386][1568,1469]">
+      <node index="0" text="What do my notes say about the batting cage plug?" resource-id="" class="android.widget.TextView" package="com.pocketpalai.bray" content-desc="" clickable="false" bounds="[940,1406][1528,1449]" />
+    </node>
+    <node index="3" text="Type your message here" resource-id="chat-input" class="android.widget.EditText" package="com.pocketpalai.bray" content-desc="Message input" clickable="true" bounds="[48,2312][1552,2360]" />
+  </node>
+</hierarchy>

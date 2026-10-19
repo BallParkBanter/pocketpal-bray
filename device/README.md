@@ -11,6 +11,8 @@ Tailscale relay `localhost:5599`). Never hard-code the serial.
 | `chat.sh "<prompt>" [--pal "<name>"] [--timeout 180] [--keep-thinking]` | New chat, optional Pal, thinking OFF, types the prompt, waits for the reply. Prints one JSON line (below). Exit 0 if `ok`. |
 | `shot.sh "<caption>"` | Screenshot, posted to Mattermost `galaxy-tab-s7` (`BRAY_MM_CHANNEL` overrides). Prints the PNG path. |
 | `lib.sh` | Shared helpers (source it). |
+| `chat_parse.py` | Turns a UI dump into chat.sh's JSON line (used by `chat.sh`, importable by tests). |
+| `tests/` | Offline tests, no tablet needed: `tests/test_lock.sh`, `python3 -I tests/test_chat_parse.py`. |
 
 ## chat.sh output
 
@@ -24,9 +26,13 @@ Tailscale relay `localhost:5599`). Never hard-code the serial.
 - `response`: when the whole reply bubble fits on screen, it is the bubble's text nodes,
   one per line (code blocks included). Otherwise it falls back to the bubble's
   accessibility label, which joins paragraphs with `, ` and leaves out code-block bodies.
-- `tools_used`: names from the `tool-used-chip` chips (`used <name> · …`), in order.
+- `tools_used`: one entry per tool call, in call order, repeats kept. Read from the
+  `tool-used-chip` chips (`used <name> · …`) and `tool-error-block`s (`<name> failed`), sorted
+  by screen position. A tool with a registered TalentUI renders its own UI instead of a chip and
+  does **not** show up here unless that UI also exposes the name.
 - On failure `ok` is `false` and an `error` field says why (`tablet locked or asleep — Bo must unlock`,
-  `pal not found: X`, `timed out …`, `model not loaded …`).
+  `pal not found: X`, `timed out …`, `model not loaded …`, `device lock busy …`). The JSON line is
+  printed in every case, including a lock timeout (exit 75).
 - `--pal "No Pal"` clears the active Pal. Without `--pal` the current Pal stays.
 
 ## lib.sh functions
@@ -40,7 +46,9 @@ Tailscale relay `localhost:5599`). Never hard-code the serial.
 **Locking.** Every function that touches the tablet runs under `flock /tmp/bray-device.lock`,
 so parallel agents never drive the screen at once. The lock is re-entrant inside one
 process tree (`dev_locked my_flow` holds it for a whole flow). `chat.sh` holds it for the
-full run. Waits up to `BRAY_LOCK_WAIT` seconds (default 900).
+full run. Waits up to `BRAY_LOCK_WAIT` seconds (default 900), then exits 75.
+The lock fd never leaks into child processes (`"$@" 9>&-`), so a daemon started under the lock —
+like the `ssh -f` tunnel `tablet status` may open — cannot hold it after the call returns.
 
 ## Things that will bite you
 
