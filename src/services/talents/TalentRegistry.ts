@@ -14,6 +14,11 @@ export class TalentRegistry {
     this.engines.set(engine.name, engine);
   }
 
+  /** Runtime removal (e.g. an MCP server Bo removed in settings). */
+  unregister(name: string): void {
+    this.engines.delete(name);
+  }
+
   get(name: string): TalentEngine | undefined {
     return this.engines.get(name);
   }
