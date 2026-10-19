@@ -1,12 +1,21 @@
 #!/usr/bin/env bash
 # device/chat.sh "<prompt>" [--pal "<name>"] [--timeout 180] [--keep-thinking] [--continue]
+#                [--approve allow|deny] [--approve-match <regex>]
 #
 # Drives PocketPal Bray on the tablet: new chat, optional Pal, thinking OFF,
 # types the prompt, sends, waits for the reply's metrics footer, screenshots.
 # --continue: skip New Chat / Pal / thinking; send into the current conversation
 #   (multi-turn). --pal is ignored with --continue.
+# --approve: what to tap when a Bray Allow/Deny approval dialog pops up while
+#   waiting (default deny — the harness never allows anything unless asked).
+#   --approve allow REQUIRES --approve-match: Allow is tapped only when the
+#   regex fully matches the dialog's message; anything else is Denied and
+#   flagged "mismatch" (the eval then FAILs).
+#   Each dialog is screenshotted and listed in "approvals". Only PocketPal
+#   Bray's own dialog is answered, never Shizuku's permission dialog.
 # Prints ONE JSON line on stdout:
-#   {"prompt","response","tok_s","ttft_ms","tools_used":[...],"screenshot","ok", "error"?}
+#   {"prompt","response","tok_s","ttft_ms","tools_used":[...],"screenshot",
+#    "approvals":[{"title","message","choice","x","y","screenshot"}],"ok", "error"?}
 # Exit 0 when ok, 1 otherwise (the JSON line is printed either way).
 #
 # Holds /tmp/bray-device.lock for the whole run.
@@ -17,7 +26,7 @@ HERE="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
 # shellcheck source=lib.sh
 source "$HERE/lib.sh"
 
-PROMPT=""; PAL=""; TIMEOUT=180; KEEP_THINKING=0; CONTINUE=0
+PROMPT=""; PAL=""; TIMEOUT=180; KEEP_THINKING=0; CONTINUE=0; APPROVE=deny; APPROVE_MATCH=""
 BRAY_MODEL_RX="${BRAY_MODEL_RX:-^gemma-4-E2B-it-Q4_0\.gguf$}"   # model to load if none is
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -25,18 +34,38 @@ while [[ $# -gt 0 ]]; do
     --timeout) TIMEOUT="$2"; shift 2 ;;
     --keep-thinking) KEEP_THINKING=1; shift ;;
     --continue) CONTINUE=1; shift ;;
-    -h|--help) sed -n '2,15p' "$0"; exit 0 ;;
+    --approve) APPROVE="$2"; shift 2
+               [[ "$APPROVE" == allow || "$APPROVE" == deny ]] || { echo "chat.sh: --approve allow|deny" >&2; exit 2; } ;;
+    --approve-match) APPROVE_MATCH="$2"; shift 2 ;;
+    -h|--help) sed -n '2,24p' "$0"; exit 0 ;;
     *) [[ -z "$PROMPT" ]] || { echo "chat.sh: unexpected arg: $1" >&2; exit 2; }; PROMPT="$1"; shift ;;
   esac
 done
+if [[ "$APPROVE" == allow && -z "$APPROVE_MATCH" ]]; then
+  echo "chat.sh: --approve allow needs --approve-match <regex> (what exactly may be allowed)" >&2; exit 2
+fi
 [[ -n "$PROMPT" ]] || { echo 'usage: device/chat.sh "<prompt>" [--pal "<name>"] [--timeout 180]' >&2; exit 2; }
 
-XML="$(mktemp)"; BASE="$(mktemp)"; trap 'rm -f "$XML" "$BASE"' EXIT
+XML="$(mktemp)"; BASE="$(mktemp)"; APPR="$(mktemp)"; trap 'rm -f "$XML" "$BASE" "$APPR"' EXIT
 SHOT=""
 
 # emit <ok 0|1> [error] — the one JSON line, built from the last dump in $XML.
 emit() {
-  python3 -I "$HERE/chat_parse.py" "$PROMPT" "$SHOT" "$1" "${2:-}" "$XML"
+  python3 -I "$HERE/chat_parse.py" "$PROMPT" "$SHOT" "$1" "${2:-}" "$XML" "$APPR"
+}
+
+# answer_dialog — if a Bray approval dialog is in $XML: screenshot it, tap
+# $APPROVE, log it to $APPR. rc 0 when a dialog was answered.
+answer_dialog() {
+  local dlg shot
+  dlg="$(python3 -I "$HERE/chat_parse.py" --dialog "$XML" "$APPROVE" "$APPROVE_MATCH")" || return 1
+  shot="$(_dev_shot "$BRAY_SHOT_DIR/approval-$(date +%Y%m%d-%H%M%S).png")"
+  [[ -n "$shot" ]] && cp "$XML" "${shot%.png}.xml"   # the dialog's UI dump, next to its screenshot
+  python3 -I -c 'import json,sys; d=json.loads(sys.argv[1]); d["screenshot"]=sys.argv[2] or None; print(json.dumps(d, ensure_ascii=False))' \
+    "$dlg" "$shot" >>"$APPR"
+  # shellcheck disable=SC2046
+  dev_adb shell input tap $(python3 -I -c 'import json,sys; d=json.loads(sys.argv[1]); print(d["x"], d["y"])' "$dlg") >/dev/null
+  sleep 2
 }
 
 dump() { _dev_ui_xml >"$XML"; }
@@ -118,11 +147,15 @@ prepare() {
 
   if [[ -n "$PAL" ]]; then
     tap '^Select Pal$' || fail "Select Pal button not found"; sleep 2
+    tap '^Pals$'; sleep 1   # the sheet reopens on the last tab (may be Models)
     local pal_rx
-    pal_rx="^$(python3 -I -c 'import re,sys; print(re.escape(sys.argv[1]))' "$PAL")(, |$)"
+    pal_rx="^$(python3 -I -c 'import re,sys; print(re.escape(sys.argv[1]))' "$PAL")$"   # the title Text node, not the row (its centre can sit under the input bar)
     # Close the sheet by its backdrop, never with BACK (BACK can background
     # the app, which auto-releases the model).
     # The "No Pal" row only exists while a Pal is active; absent means none is.
+    # The last rows sit under the message bar (a tap there hits the input),
+    # so scroll the list up first: with few Pals this is a no-op.
+    dev_adb shell input swipe 1280 1150 1280 500 500; sleep 3   # let the fling settle before the dump
     tap "$pal_rx" || { tap '^Bottom sheet backdrop$'; [[ "$PAL" == "No Pal" ]] || fail "pal not found: $PAL"; }
     sleep 2
     # Rows past the 4th sit behind the input bar: the tap above then lands on nothing and
@@ -143,6 +176,13 @@ PY
         dev_adb shell input swipe $((w / 2)) $((h * 78 / 100)) $((w / 2)) $((h * 44 / 100)) 500 >/dev/null; sleep 1
         tap "$pal_rx" || fail "pal not found after scroll: $PAL"; sleep 2
       fi
+    fi
+    # Verify: the input bar shows "Pal: <name>" while a Pal is active.
+    dump || fail "uiautomator dump failed"
+    if [[ "$PAL" == "No Pal" ]]; then
+      ! has '^Pal: ' || fail "pal still active after choosing No Pal"
+    else
+      has "^Pal: $(python3 -I -c 'import re,sys; print(re.escape(sys.argv[1]))' "$PAL")\$" || fail "pal not selected: $PAL"
     fi
   fi
 
@@ -174,6 +214,22 @@ print("\x27" + s.replace("\x27", "\x27\\\x27\x27") + "\x27")' "$PROMPT")"
   while (( SECONDS - start < TIMEOUT )); do
     sleep 3
     dump || continue
+    if answer_dialog; then prev=""; continue; fi
+    # A tool may have opened another app (tablet_open_app): PocketPal keeps
+    # writing its reply behind it, so bring PocketPal back to read it. Never
+    # cover Shizuku's permission dialog, which only Bo may answer.
+    case "$(python3 -I "$HERE/chat_parse.py" --front "$XML")" in
+      ours) ;;
+      wait) continue ;;   # Shizuku's permission dialog: only Bo answers it
+      system)             # lock screen / system dialog: never relaunch over it
+        _dev_ready 2>/dev/null || fail "tablet locked or asleep — Bo must unlock"
+        fail "system dialog in front; not relaunching over it" ;;
+      relaunch)
+        # Re-check the keyguard right before relaunching.
+        _dev_ready 2>/dev/null || fail "tablet locked or asleep — Bo must unlock"
+        echo "chat.sh: another app is in front; bringing PocketPal back" >&2
+        _dev_launch; sleep 2; prev=""; continue ;;
+    esac
     has "^$NOT_LOADED" && return 3
     cur=""
     if python3 -I "$HERE/chat_parse.py" --is-new "$BASE" "$XML"; then

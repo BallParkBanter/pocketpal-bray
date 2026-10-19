@@ -5,6 +5,11 @@ import {WebSearchEngine} from './WebSearchEngine';
 import {ReadUrlEngine} from './ReadUrlEngine';
 import {SearchNotesEngine} from './bray/SearchNotesEngine';
 import {ReadNoteEngine} from './bray/ReadNoteEngine';
+import {TabletStatusEngine} from './bray/TabletStatusEngine';
+import {TabletBrightnessEngine} from './bray/TabletBrightnessEngine';
+import {TabletOpenAppEngine} from './bray/TabletOpenAppEngine';
+import {TabletListFilesEngine} from './bray/TabletListFilesEngine';
+import {TabletShellEngine} from './bray/TabletShellEngine';
 import {talentRegistry} from './TalentRegistry';
 import type {SearchAccess} from './searchAccess';
 import type {ToolDefinition, SystemPromptContext} from './types';
@@ -65,6 +70,12 @@ export function registerDefaultTalents(): void {
   const searchAccess = createSearchAccess();
   talentRegistry.register(new WebSearchEngine(searchAccess));
   talentRegistry.register(new ReadUrlEngine(searchAccess));
+  // Bray fork: tablet-control talents (Shizuku).
+  talentRegistry.register(new TabletStatusEngine());
+  talentRegistry.register(new TabletBrightnessEngine());
+  talentRegistry.register(new TabletOpenAppEngine());
+  talentRegistry.register(new TabletListFilesEngine());
+  talentRegistry.register(new TabletShellEngine());
   talentRegistry.register(new SearchNotesEngine());
   talentRegistry.register(new ReadNoteEngine());
   startMcpBridge();

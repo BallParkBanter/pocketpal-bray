@@ -713,7 +713,9 @@ class ChatSessionStore {
    * showing step 0's text duplicated under the talent block until the
    * follow-up step's first real token replaces it.
    */
-  private flushStreamingUpdate(): void {
+  // Bray fork: public so useChatSession can drain a pending partial (e.g.
+  // streamed reasoning) before writing the empty-reply fallback.
+  flushStreamingUpdate(): void {
     if (this.streamingThrottleTimer) {
       clearTimeout(this.streamingThrottleTimer);
       this.streamingThrottleTimer = null;

@@ -32,12 +32,26 @@ def grade(case, result):
 
 def _grade(case, result):
     """Never raises: any error while grading is a FAIL.
-    -> (status, reason). Skips never reach the denominator (caller's job)."""
-    if case.get("needs_approval"):
-        # TODO(later task): drive the Allow/Deny dialog, then grade these normally.
-        return SKIP, "needs_approval: approval handling not implemented yet"
+    -> (status, reason). SKIP is no longer produced (kept for the CLI contract)."""
     if not result.get("ok"):
         return FAIL, "not ok: " + str(result.get("error") or "no error given")
+    # Approval hook: run-evals.sh runs needs_approval cases with
+    # `chat.sh --approve allow --approve-match <case.approve_match>`, which taps
+    # Allow on Bray's Allow/Deny dialog ONLY if its message fully matches, and
+    # lists every dialog it answered in result["approvals"]. Every other case
+    # runs with the default --approve deny, so a dialog there is a FAIL (and
+    # was denied, so nothing changed).
+    approvals = result.get("approvals") or []
+    bad = next((a for a in approvals if a.get("mismatch")), None)
+    if bad is not None:
+        return FAIL, "approval dialog did not match approve_match (denied): %s" % bad.get("message")
+    if case.get("needs_approval"):
+        if not case.get("approve_match"):
+            return FAIL, "needs_approval case has no approve_match"
+        if not any(a.get("choice") == "allow" for a in approvals):
+            return FAIL, "needs_approval: no approval dialog appeared"
+    elif approvals:
+        return FAIL, "unexpected approval dialog (denied): %s" % (approvals[0].get("message") or approvals[0].get("title"))
     resp = result.get("response") or ""
     if not re.search(case["expect_regex"], resp, re.IGNORECASE):
         return FAIL, "regex /%s/ did not match" % case["expect_regex"]

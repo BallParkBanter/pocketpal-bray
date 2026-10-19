@@ -4,6 +4,13 @@
 
     python3 -I chat_parse.py --footers <dump.xml>   # "<count>\t<newest footer text>"
 
+    python3 -I chat_parse.py --dialog <dump.xml> [allow|deny] [approve-match-regex]
+        # rc 0 + one JSON line {"title","message","choice","x","y"} when a Bray
+        # Allow/Deny approval dialog is on screen (x,y = button to tap), else rc 1.
+
+chat.sh passes an approvals JSONL file as an optional 6th argument; its lines
+land in the output's "approvals" list.
+
 Importable for tests: parse(xml_text) -> dict of response/tok_s/ttft_ms/tools_used.
 """
 import json
@@ -11,7 +18,8 @@ import re
 import sys
 import xml.etree.ElementTree as ET
 
-METRICS = re.compile(r"([\d.]+)ms/token, ([\d.]+) tokens/sec.*?([\d.]+)ms TTFT")
+# TTFT is missing when the final step produced no tokens (empty reply): still a finished turn.
+METRICS = re.compile(r"([\d.]+)ms/token, ([\d.]+) tokens/sec(?:.*?([\d.]+)ms TTFT)?")
 # ToolUsedChip (testID tool-used-chip): "used <name>[ · N tokens · Ns]" (en.json chat.toolUsedChip)
 CHIP = re.compile(r"^used (\S+?)(?: · .*)?$")
 # ToolErrorBlock (testID tool-error-block): "<name> failed" (en.json chat.toolErrorBlock)
@@ -71,6 +79,76 @@ def new_footer(baseline, current):
     return len(current) > len(baseline) or not baseline or current[0] != baseline[0]
 
 
+BRAY_PKG = "com.pocketpalai.bray"
+ALLOW = re.compile(r"^allow$", re.IGNORECASE)
+DENY = re.compile(r"^deny$", re.IGNORECASE)
+
+
+def approval_dialog(xml_text, choice="deny", match=None, pkg=BRAY_PKG):
+    """The Bray approval dialog (askApproval -> Alert with Deny / Allow), or None.
+
+    Only nodes of PocketPal Bray's own package count, and only buttons whose
+    whole text is Allow / Deny: Shizuku's permission dialog ("Allow all the
+    time", other package) is never matched, so the harness can't answer it.
+
+    Allow is only ever chosen when `match` (the case's approve_match regex)
+    FULLY matches the dialog's message. choice="allow" without a match, or a
+    message that doesn't match, falls back to Deny and sets "mismatch": True,
+    so a model that asks for something else can never be approved unattended.
+    -> {"title","message","choice","mismatch","x","y"}, x,y = button to tap.
+    """
+    try:
+        nodes = [n for n in ET.fromstring(xml_text).iter("node") if n.get("package") == pkg]
+    except ET.ParseError:
+        return None
+    allow = next((n for n in nodes if ALLOW.match(n.get("text", "").strip())), None)
+    deny = next((n for n in nodes if DENY.match(n.get("text", "").strip())), None)
+    if allow is None or deny is None:
+        return None
+    title = next((n.get("text", "") for n in nodes if re.search(r":id/alert_?[tT]itle$", n.get("resource-id", ""))), "")
+    message = next((n.get("text", "") for n in nodes if n.get("resource-id", "").endswith(":id/message")), "")
+    mismatch = False
+    if choice == "allow":
+        try:
+            ok = bool(match) and re.fullmatch(match, message) is not None
+        except re.error:
+            ok = False
+        if not ok:
+            choice, mismatch = "deny", True
+    else:
+        choice = "deny"
+    b = bbox(allow if choice == "allow" else deny)
+    if b is None:
+        return None
+    return {"title": title, "message": message, "choice": choice, "mismatch": mismatch,
+            "x": (b[0] + b[2]) // 2, "y": (b[1] + b[3]) // 2}
+
+
+SYSTEM_PKGS = {"com.android.systemui", "android", "com.android.permissioncontroller",
+               "com.google.android.permissioncontroller"}
+
+
+def front_decision(xml_text, pkg=BRAY_PKG):
+    """What chat.sh may do about the window in front while it waits:
+      "ours"     - PocketPal Bray is on screen
+      "wait"     - Shizuku's permission dialog: only Bo answers it, don't touch
+      "system"   - lock screen / system UI / a system dialog: never relaunch
+      "relaunch" - another ordinary app (a tool opened it): bring PocketPal back
+    (chat.sh also checks the keyguard with dev_ready before relaunching.)"""
+    try:
+        nodes = list(ET.fromstring(xml_text).iter("node"))
+    except ET.ParseError:
+        return "system"
+    pkgs = {n.get("package", "") for n in nodes}
+    if pkg in pkgs:
+        return "ours"
+    if any(p.startswith("moe.shizuku") for p in pkgs):
+        return "wait"
+    if not pkgs or pkgs & SYSTEM_PKGS or "" in pkgs:
+        return "system"
+    return "relaunch"
+
+
 def parse(xml_text):
     bubble = None
     out = {"response": "", "tok_s": None, "ttft_ms": None, "tools_used": []}
@@ -88,7 +166,7 @@ def parse(xml_text):
         mtext = footer.get("text", "")
         m = METRICS.search(mtext)
         out["tok_s"] = float(m.group(2))
-        out["ttft_ms"] = int(float(m.group(3)))
+        out["ttft_ms"] = int(float(m.group(3))) if m.group(3) else None
         # The bubble's content-desc is "<reply text>, <metrics>" but joins
         # paragraphs with ", " and omits code-block bodies, so when the whole
         # bubble is on screen rebuild the reply from the text nodes inside it.
@@ -104,8 +182,10 @@ def parse(xml_text):
                 lines = [n.get("text").rstrip() for n in nodes
                          if n.get("text", "").strip() and n.get("resource-id") != "footer-timing"
                          and inside(n, b) and not any(inside(n, tb) for tb in tool_boxes)]
-                if lines:
-                    out["response"] = "\n".join(lines)
+                # Whole bubble on screen: its text nodes ARE the reply. None
+                # (only tool chips) means the model ended its turn without text;
+                # the content-desc would hand back the chip label instead.
+                out["response"] = "\n".join(lines)
     turn = None
     if footer is not None:
         turn = bubble if bubble is not None else next((p for p in root.iter() if footer in list(p)), None)
@@ -117,6 +197,18 @@ def main(argv):
     if argv[1] == "--is-new":  # <baseline.xml> <current.xml>: rc 0 when current has a new turn's footer
         with open(argv[2], encoding="utf-8") as f, open(argv[3], encoding="utf-8") as g:
             return 0 if new_footer(footer_texts(f.read()), footer_texts(g.read())) else 1
+    if argv[1] == "--dialog":
+        with open(argv[2], encoding="utf-8") as f:
+            d = approval_dialog(f.read(), argv[3] if len(argv) > 3 else "deny",
+                                argv[4] if len(argv) > 4 else None)
+        if d is None:
+            return 1
+        print(json.dumps(d, ensure_ascii=False))
+        return 0
+    if argv[1] == "--front":
+        with open(argv[2], encoding="utf-8") as f:
+            print(front_decision(f.read()))
+        return 0
     if argv[1] == "--footers":
         with open(argv[2], encoding="utf-8") as f:
             t = footer_texts(f.read())
@@ -128,12 +220,19 @@ def main(argv):
             parsed = parse(f.read())
     except OSError:
         parsed = parse("")
-    out = {"prompt": prompt, **parsed, "screenshot": shot or None}
+    out = {"prompt": prompt, **parsed, "screenshot": shot or None, "approvals": []}
+    if len(argv) > 6 and argv[6]:
+        try:
+            with open(argv[6], encoding="utf-8") as f:
+                out["approvals"] = [json.loads(l) for l in f if l.strip()]
+        except (OSError, ValueError):
+            pass
     out["ok"] = ok and bool(out["response"]) and out["tok_s"] is not None
     if err:
         out["error"] = err
     elif ok and not out["ok"]:
-        out["error"] = "reply or metrics not found in UI dump"
+        out["error"] = ("empty reply (the model ended its turn without text)" if out["tok_s"] is not None
+                        else "reply or metrics not found in UI dump")
     print(json.dumps(out, ensure_ascii=False))
     return 0 if out["ok"] else 1
 

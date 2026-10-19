@@ -5,6 +5,9 @@
  */
 import {deriveToolSchemas, resetRegisteredFlag, talentRegistry} from '../index';
 
+// Bray fork: count the five upstream talents only.
+import {upstreamOnly} from '../bray/__tests__/upstreamOnly';
+
 describe('deriveToolSchemas strict-subset filtering', () => {
   beforeEach(() => {
     resetRegisteredFlag();
@@ -32,7 +35,7 @@ describe('deriveToolSchemas strict-subset filtering', () => {
 
   it('returns all schemas when talentNames is undefined', () => {
     const schemas = deriveToolSchemas();
-    expect(schemas).toHaveLength(7);
+    expect(upstreamOnly(schemas)).toHaveLength(5);
   });
 
   it('includes the internet-search talents in the full set', () => {

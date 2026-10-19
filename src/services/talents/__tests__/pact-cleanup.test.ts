@@ -21,6 +21,9 @@ import {
 } from '../index';
 import type {TalentResult, ToolDefinition} from '../types';
 
+// Bray fork: count the five upstream talents only.
+import {upstreamOnly} from '../bray/__tests__/upstreamOnly';
+
 describe('PACT cleanup: result-keyed metadata by call ID', () => {
   it('two render_html calls with same talent name produce separate TalentResult entries', async () => {
     const engine = new RenderHtmlEngine();
@@ -142,16 +145,16 @@ describe('PACT cleanup: deriveToolSchemas()', () => {
     expect(talentRegistry.getAll()).toHaveLength(0);
 
     const schemas = deriveToolSchemas();
-    expect(schemas).toHaveLength(7);
+    expect(upstreamOnly(schemas)).toHaveLength(5);
 
-    const names = schemas.map(s => s.function.name).sort();
+    const names = upstreamOnly(schemas)
+      .map(s => s.function.name)
+      .sort();
     expect(names).toEqual([
       'calculate',
       'datetime',
-      'read_note',
       'read_url',
       'render_html',
-      'search_notes',
       'web_search',
     ]);
   });
@@ -177,7 +180,7 @@ describe('PACT cleanup: deriveToolSchemas()', () => {
       tool_choice: 'auto' as const,
       jinja: true,
     };
-    expect(completionSettings.tools).toHaveLength(7);
+    expect(upstreamOnly(completionSettings.tools)).toHaveLength(5);
     expect(completionSettings.tools[0].type).toBe('function');
   });
 });

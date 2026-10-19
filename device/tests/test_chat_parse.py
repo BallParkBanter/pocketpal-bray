@@ -52,7 +52,7 @@ class Reply(unittest.TestCase):
         lines = out.stdout.splitlines()
         self.assertEqual(len(lines), 1)
         j = json.loads(lines[0])
-        self.assertEqual(list(j), ["prompt", "response", "tok_s", "ttft_ms", "tools_used", "screenshot", "ok"])
+        self.assertEqual(list(j), ["prompt", "response", "tok_s", "ttft_ms", "tools_used", "screenshot", "approvals", "ok"])
         self.assertTrue(j["ok"])
 
     def test_cli_error_on_empty_dump(self):
@@ -91,6 +91,118 @@ class MultiTurn(unittest.TestCase):
         out = subprocess.run([sys.executable, "-I", str(HERE.parent / "chat_parse.py"), "--footers",
                               str(FX / "two-turn-done.xml")], capture_output=True, text=True)
         self.assertEqual(out.stdout.split("\t")[0], "2")
+
+
+DIALOG = (HERE / "fixtures" / "approval-dialog.xml").read_text(encoding="utf-8")
+
+
+class Dialog(unittest.TestCase):
+    MATCH = r"Set the screen brightness to 40%\?"
+
+    def test_allow_button_centre(self):
+        d = chat_parse.approval_dialog(DIALOG, "allow", self.MATCH)
+        self.assertEqual((d["x"], d["y"], d["choice"], d["mismatch"]), (1200, 1445, "allow", False))
+        self.assertEqual(d["title"], "Set brightness")
+        self.assertIn("40%", d["message"])
+
+    def test_default_is_deny(self):
+        d = chat_parse.approval_dialog(DIALOG)
+        self.assertEqual((d["x"], d["y"], d["choice"]), (990, 1445, "deny"))
+
+    def test_chat_screen_has_no_dialog(self):
+        self.assertIsNone(chat_parse.approval_dialog(FIXTURE, "allow"))
+
+    def test_shizuku_permission_dialog_is_never_answered(self):
+        shizuku = (DIALOG.replace('package="com.pocketpalai.bray"', 'package="moe.shizuku.privileged.api"')
+                   .replace('text="ALLOW"', 'text="Allow all the time"'))
+        self.assertIsNone(chat_parse.approval_dialog(shizuku, "allow"))
+        # Other package, even with exact Allow/Deny texts: not ours.
+        other = DIALOG.replace('package="com.pocketpalai.bray"', 'package="moe.shizuku.privileged.api"')
+        self.assertIsNone(chat_parse.approval_dialog(other, "allow"))
+
+    def test_empty_reply_footer_counts_as_done(self):
+        # Final step with no tokens: footer has no TTFT. Seen live after
+        # tablet_set_brightness; it must not look like "still generating".
+        xml = FIXTURE
+        f = chat_parse.footer_texts(xml)[0]
+        empty = xml.replace(f, "0ms/token, 0.00 tokens/sec")
+        self.assertEqual(chat_parse.footer_texts(empty)[0], "0ms/token, 0.00 tokens/sec")
+        self.assertIsNone(chat_parse.parse(empty)["ttft_ms"])
+
+    def test_title_alert_title_id(self):
+        real = DIALOG.replace(":id/alertTitle", ":id/alert_title")  # id seen live
+        self.assertEqual(chat_parse.approval_dialog(real, "allow", self.MATCH)["title"], "Set brightness")
+
+    def test_allow_without_match_is_deny(self):
+        d = chat_parse.approval_dialog(DIALOG, "allow")
+        self.assertEqual((d["choice"], d["mismatch"], d["x"]), ("deny", True, 990))
+
+    def test_partial_or_other_message_is_deny(self):
+        for rx in (r"Set the screen brightness", r".*41%.*", r"uptime", r"("):
+            d = chat_parse.approval_dialog(DIALOG, "allow", rx)
+            self.assertEqual((d["choice"], d["mismatch"]), ("deny", True), rx)
+
+    def test_model_swaps_the_command(self):
+        # The case expected `uptime`; the model asked for something else.
+        other = DIALOG.replace("Set the screen brightness to 40%?", "svc·wifi·disable")
+        d = chat_parse.approval_dialog(other, "allow", r"uptime")
+        self.assertEqual((d["choice"], d["mismatch"]), ("deny", True))
+
+    def test_chip_only_turn_is_an_empty_reply(self):
+        # Seen live 2026-10-19 (tablet_list_files): the turn holds only the tool
+        # chip and a TTFT-less footer. The chip label is not a reply.
+        xml = """<hierarchy>
+  <node resource-id="header-view" bounds="[0,0][1600,184]" text="" content-desc="" />
+  <node resource-id="" text="" bounds="[0,1000][1600,1300]"
+        content-desc="\U000f0be0, used tablet_list_files \u00b7 12 tokens \u00b7 1s, 0ms/token, 0.00 tokens/sec">
+    <node resource-id="tool-used-chip" text="" content-desc="" bounds="[40,1100][600,1150]">
+      <node resource-id="" text="used tablet_list_files \u00b7 12 tokens \u00b7 1s" content-desc="" bounds="[80,1100][600,1150]" />
+    </node>
+    <node resource-id="footer-timing" text="0ms/token, 0.00 tokens/sec" content-desc="" bounds="[80,1200][600,1240]" />
+  </node>
+</hierarchy>"""
+        p = chat_parse.parse(xml)
+        self.assertEqual(p["response"], "")
+        self.assertEqual(p["tools_used"], ["tablet_list_files"])
+        self.assertEqual(p["tok_s"], 0.0)
+
+    def test_cli(self):
+        p = HERE / "fixtures" / "approval-dialog.xml"
+        r = subprocess.run([sys.executable, "-I", str(HERE.parent / "chat_parse.py"), "--dialog", str(p), "allow",
+                            self.MATCH], capture_output=True, text=True)
+        self.assertEqual(r.returncode, 0)
+        self.assertEqual(json.loads(r.stdout)["x"], 1200)
+        r = subprocess.run([sys.executable, "-I", str(HERE.parent / "chat_parse.py"), "--dialog", str(p), "allow"],
+                           capture_output=True, text=True)
+        self.assertEqual(json.loads(r.stdout)["choice"], "deny")
+        r = subprocess.run([sys.executable, "-I", str(HERE.parent / "chat_parse.py"), "--dialog",
+                            str(HERE / "fixtures" / "tool-turn.xml")], capture_output=True, text=True)
+        self.assertEqual(r.returncode, 1)
+
+    def test_approvals_file_lands_in_json(self):
+        import tempfile
+        with tempfile.NamedTemporaryFile("w", suffix=".jsonl", delete=False) as f:
+            f.write(json.dumps({"title": "t", "choice": "allow"}) + "\n")
+        r = subprocess.run([sys.executable, "-I", str(HERE.parent / "chat_parse.py"), "p", "", "1", "",
+                            str(HERE / "fixtures" / "tool-turn.xml"), f.name], capture_output=True, text=True)
+        self.assertEqual(json.loads(r.stdout)["approvals"], [{"title": "t", "choice": "allow"}])
+        pathlib.Path(f.name).unlink()
+
+
+class Front(unittest.TestCase):
+    def xml(self, *pkgs):
+        return "<hierarchy>" + "".join('<node package="%s" bounds="[0,0][1,1]" />' % p for p in pkgs) + "</hierarchy>"
+
+    def test_decisions(self):
+        f = chat_parse.front_decision
+        self.assertEqual(f(FIXTURE), "ours")
+        self.assertEqual(f(self.xml("com.github.libretube")), "relaunch")
+        self.assertEqual(f(self.xml("moe.shizuku.privileged.api")), "wait")
+        for sysp in ("com.android.systemui", "android", "com.google.android.permissioncontroller"):
+            self.assertEqual(f(self.xml(sysp)), "system", sysp)
+        # an app with a system dialog over it: still system
+        self.assertEqual(f(self.xml("com.github.libretube", "android")), "system")
+        self.assertEqual(f("not xml"), "system")
 
 
 if __name__ == "__main__":
