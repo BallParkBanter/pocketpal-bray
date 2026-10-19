@@ -31,6 +31,20 @@ class Grade(unittest.TestCase):
         self.assertEqual(g.grade(dict(CASE, needs_approval=True), OK)[0], g.SKIP)
 
 
+class Crash(unittest.TestCase):
+    def test_bad_regex_is_fail(self):
+        st, why = g.grade(dict(CASE, expect_regex="("), OK)
+        self.assertEqual(st, g.FAIL)
+        self.assertIn("grader error", why)
+
+    def test_missing_key_is_fail(self):
+        case = {"id": "c"}  # no expect_regex
+        self.assertEqual(g.grade(case, OK)[0], g.FAIL)
+
+    def test_garbage_result_is_fail(self):
+        self.assertEqual(g.grade(CASE, None)[0], g.FAIL)
+
+
 class Rows(unittest.TestCase):
     def test_row_escapes_pipes_and_truncates(self):
         r = g.row("2026-10-19 10:00", CASE, g.PASS, dict(OK, response="a | b\n" + "x" * 200, tools_used=["t1", "t2"]))

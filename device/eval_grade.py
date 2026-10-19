@@ -24,7 +24,15 @@ def select(cases, only=None, offline=False):
 
 
 def grade(case, result):
-    """-> (status, reason). Skips never reach the denominator (caller's job)."""
+    try:
+        return _grade(case, result)
+    except Exception as e:  # bad regex, missing key, wrong types ...
+        return FAIL, "grader error: %s: %s" % (type(e).__name__, e)
+
+
+def _grade(case, result):
+    """Never raises: any error while grading is a FAIL.
+    -> (status, reason). Skips never reach the denominator (caller's job)."""
     if case.get("needs_approval"):
         # TODO(later task): drive the Allow/Deny dialog, then grade these normally.
         return SKIP, "needs_approval: approval handling not implemented yet"

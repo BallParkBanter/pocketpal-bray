@@ -31,7 +31,7 @@ while [[ $# -gt 0 ]]; do
 done
 [[ -n "$PROMPT" ]] || { echo 'usage: device/chat.sh "<prompt>" [--pal "<name>"] [--timeout 180]' >&2; exit 2; }
 
-XML="$(mktemp)"; trap 'rm -f "$XML"' EXIT
+XML="$(mktemp)"; BASE="$(mktemp)"; trap 'rm -f "$XML" "$BASE"' EXIT
 SHOT=""
 
 # emit <ok 0|1> [error] — the one JSON line, built from the last dump in $XML.
@@ -137,6 +137,7 @@ prepare() {
 
 # send_and_wait — type, send, wait. Returns 0 done, 3 model not loaded, 1 timeout.
 send_and_wait() {
+  dump && cp "$XML" "$BASE"   # footers already on screen, before our send
   tap 'id:^chat-input$' || fail "message box not found"; sleep 1
   local esc
   esc="$(python3 -I -c '
@@ -147,17 +148,18 @@ print("\x27" + s.replace("\x27", "\x27\\\x27\x27") + "\x27")' "$PROMPT")"
   sleep 1
   tap 'id:^send-button$' || fail "send button not found"
 
-  # Finished = metrics footer present and unchanged across two polls.
+  # Finished = a footer from a NEW turn (not the one already on screen before we
+  # sent: with --continue the previous turn's footer is visible) that is
+  # unchanged across two polls.
   local start=$SECONDS prev="" cur
   while (( SECONDS - start < TIMEOUT )); do
     sleep 3
     dump || continue
     has "^$NOT_LOADED" && return 3
-    cur="$(python3 -I -c '
-import sys, xml.etree.ElementTree as ET
-for n in ET.parse(sys.argv[1]).getroot().iter("node"):
-    if n.get("resource-id") == "footer-timing" and "TTFT" in n.get("text", ""):
-        print(n.get("text")); break' "$XML")"
+    cur=""
+    if python3 -I "$HERE/chat_parse.py" --is-new "$BASE" "$XML"; then
+      cur="$(python3 -I "$HERE/chat_parse.py" --footers "$XML")"
+    fi
     [[ -n "$cur" && "$cur" == "$prev" ]] && return 0
     prev="$cur"
   done

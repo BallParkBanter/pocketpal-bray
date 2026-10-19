@@ -62,5 +62,36 @@ class Reply(unittest.TestCase):
         self.assertEqual((out.returncode, j["ok"], j["error"]), (1, False, "device lock busy"))
 
 
+FX = HERE / "fixtures"
+DONE = (FX / "two-turn-done.xml").read_text(encoding="utf-8")
+PENDING = (FX / "two-turn-pending.xml").read_text(encoding="utf-8")
+
+
+class MultiTurn(unittest.TestCase):
+    def test_parse_returns_newest_turn_only(self):
+        p = chat_parse.parse(DONE)
+        self.assertEqual(p["response"], "Teal")
+        self.assertEqual(p["tools_used"], ["new_tool"])  # not old_tool
+        self.assertEqual((p["tok_s"], p["ttft_ms"]), (6.1, 1689))
+
+    def test_old_footer_alone_is_not_done(self):
+        base = chat_parse.footer_texts(PENDING)  # baseline taken before the new reply
+        self.assertEqual(len(base), 1)
+        self.assertFalse(chat_parse.new_footer(base, chat_parse.footer_texts(PENDING)))
+
+    def test_new_footer_is_done(self):
+        base = chat_parse.footer_texts(PENDING)
+        self.assertTrue(chat_parse.new_footer(base, chat_parse.footer_texts(DONE)))
+
+    def test_no_footer_not_done_and_first_turn_done(self):
+        self.assertFalse(chat_parse.new_footer([], []))
+        self.assertTrue(chat_parse.new_footer([], chat_parse.footer_texts(DONE)))
+
+    def test_footers_cli(self):
+        out = subprocess.run([sys.executable, "-I", str(HERE.parent / "chat_parse.py"), "--footers",
+                              str(FX / "two-turn-done.xml")], capture_output=True, text=True)
+        self.assertEqual(out.stdout.split("\t")[0], "2")
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

@@ -41,7 +41,7 @@ fi
 jf() { python3 -I -c 'import json,sys; v=json.loads(sys.argv[1]).get(sys.argv[2]); print("" if v is None else v)' "$@"; }
 
 run_all() {
-  local pass=0 fail=0 skip=0 case_json id pal setup prompt out g status stamp
+  local sout pass=0 fail=0 skip=0 case_json id pal setup prompt out g status stamp
   while IFS= read -r case_json; do
     [[ -n "$case_json" ]] || continue
     id="$(jf "$case_json" id)"; pal="$(jf "$case_json" pal)"
@@ -53,16 +53,24 @@ run_all() {
       local palargs=(); [[ -n "$pal" ]] && palargs=(--pal "$pal")
       echo "== $id" >&2
       if [[ -n "$setup" ]]; then
-        "$CHAT" "$setup" "${palargs[@]}" </dev/null >/dev/null
-        out="$("$CHAT" "$prompt" --continue </dev/null)"
+        sout="$("$CHAT" "$setup" "${palargs[@]}" </dev/null)"
+        if [[ "$(jf "$sout" ok)" != True ]]; then   # setup failed: don't run the follow-up
+          out="$(python3 -I -c 'import json,sys; print(json.dumps({"ok": False, "error": "setup failed: " + (json.loads(sys.argv[1]).get("error") or "no error given")}))' "$sout" 2>/dev/null)"
+          [[ -n "$out" ]] || out='{"ok":false,"error":"setup failed: chat.sh printed no JSON"}'
+        else
+          out="$("$CHAT" "$prompt" --continue </dev/null)"
+        fi
       else
         out="$("$CHAT" "$prompt" "${palargs[@]}" </dev/null)"
       fi
     fi
-    g="$(python3 -I "$HERE/eval_grade.py" grade "$case_json" "$out")"
-    status="$(jf "$g" status)"
+    g="$(python3 -I "$HERE/eval_grade.py" grade "$case_json" "$out" 2>/dev/null)"
+    status="$(jf "$g" status 2>/dev/null)"
+    # Fail closed: a crashed or garbled grader is a FAIL, never a SKIP.
+    case "$status" in PASS|FAIL|SKIP) ;; *) status=FAIL; g='{"reason":"grader crashed or printed no status"}' ;; esac
     echo "$status $id $(jf "$g" reason)" >&2
-    python3 -I "$HERE/eval_grade.py" row "$stamp" "$case_json" "$status" "$out" >>"$RESULTS"
+    python3 -I "$HERE/eval_grade.py" row "$stamp" "$case_json" "$status" "$out" >>"$RESULTS" ||
+      echo "| $stamp | $id | $status | - | - | - | (row formatting failed) |" >>"$RESULTS"
     case "$status" in PASS) pass=$((pass+1)) ;; FAIL) fail=$((fail+1)) ;; *) skip=$((skip+1)) ;; esac
   done < <(python3 -I "$HERE/eval_grade.py" select "$CASES" "${ONLY[@]}" "${OFFLINE[@]}")
   local m=$((pass+fail))
