@@ -1,14 +1,29 @@
-import type {TalentEngine, TalentResult, ToolDefinition} from '../types';
+import type {
+  SystemPromptContext,
+  TalentEngine,
+  TalentResult,
+  ToolDefinition,
+} from '../types';
 import {askApproval} from './approval';
-import {errorResult, shellErrorResult, truncate} from './common';
+import {
+  errorResult,
+  shellErrorResult,
+  tabletFragment,
+  truncate,
+} from './common';
 import {runShell} from './shell';
 
 /**
  * Commands that could cut the tablet off the network (it is Wi-Fi only) or
  * wreck it. Rejected outright, without even asking Bo.
  */
+// The brief's list (svc wifi, cmd wifi, reboot, airplane, pm uninstall,
+// rm -rf /) plus what Gemma actually tried on the tablet for "Turn off wifi":
+// `settings put global wifi_enabled 0`. Also the other ways to drop the
+// network or the device: wifi_on, airplane via cmd connectivity, interface
+// down, shutdown, svc power, disabling packages (e.g. Tailscale).
 export const BLOCKLIST =
-  /svc wifi|cmd wifi|reboot|settings put global airplane|pm uninstall|rm -rf \//i;
+  /svc wifi|cmd wifi|wifi_enabled|wifi_on|reboot|shutdown|svc power|airplane|cmd connectivity|settings put global (wifi|airplane)|pm uninstall|pm disable|rm -rf \/|ip link set\b.*\bdown|ifconfig\b.*\bdown/i;
 export const BLOCKED_MSG = 'Blocked: this could cut the tablet off the network';
 
 export function isBlocked(command: string): boolean {
@@ -44,6 +59,10 @@ export class TabletShellEngine implements TalentEngine {
     } catch (e) {
       return shellErrorResult(this.name, e);
     }
+  }
+
+  systemPromptFragment(ctx: SystemPromptContext): string | null {
+    return tabletFragment(this.name, ctx.activeTalents);
   }
 
   toToolDefinition(): ToolDefinition {

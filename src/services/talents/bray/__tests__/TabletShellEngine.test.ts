@@ -25,6 +25,14 @@ describe('isBlocked', () => {
     ['pm uninstall com.tailscale.ipn'],
     ['rm -rf /'],
     ['rm  -rf   /sdcard'],
+    // What Gemma really sent for "Turn off wifi" on 2026-10-19:
+    ['settings put global wifi_enabled 0'],
+    ['settings put global wifi_on 0'],
+    ['cmd connectivity airplane-mode enable'],
+    ['ip link set wlan0 down'],
+    ['ifconfig wlan0 down'],
+    ['svc power shutdown'],
+    ['pm disable-user com.tailscale.ipn'],
   ])('blocks %p', cmd => {
     expect(isBlocked(cmd)).toBe(true);
   });
@@ -45,6 +53,18 @@ describe('TabletShellEngine', () => {
     mockRun.mockReset();
     mockAsk.mockReset();
   });
+
+  it.each([['svc wifi disable'], ['settings put global wifi_enabled 0']])(
+    'rejects %p with the network message, no dialog, nothing run',
+    async command => {
+      const r = await engine.execute({command});
+      expect(r).toEqual(
+        expect.objectContaining({type: 'error', summary: BLOCKED}),
+      );
+      expect(mockAsk).not.toHaveBeenCalled();
+      expect(mockRun).not.toHaveBeenCalled();
+    },
+  );
 
   it('rejects "svc wifi disable" without asking and without running', async () => {
     const r = await engine.execute({command: 'svc wifi disable'});
