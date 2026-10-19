@@ -204,9 +204,15 @@ export class McpBridge {
         getClient: () => this.clientFor(server),
         approve: this.approve,
       });
-      // Never shadow a built-in or another server's talent.
-      const existing = this.registry.get(engine.name);
-      if (existing && !(existing instanceof McpTalentEngine)) {
+      // Never overwrite anything already registered under this name: a
+      // built-in, another server's talent (server `a` + tool `b_c` and server
+      // `a_b` + tool `c` both map to mcp_a_b_c), or a sibling tool of this
+      // server that collided after the 64-char cut. First one wins; skip + log.
+      // (This server's own old talents were unregistered just above.)
+      if (this.registry.has(engine.name)) {
+        console.warn(
+          `MCP: skipped ${server.name}/${tool.name}: talent name ${engine.name} is already taken`,
+        );
         continue;
       }
       this.registry.register(engine);

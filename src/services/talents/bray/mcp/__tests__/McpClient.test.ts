@@ -124,6 +124,58 @@ describe('McpClient against the fake server', () => {
   });
 });
 
+describe('McpClient session handshake (review fixes)', () => {
+  it('one caller aborting does not fail a concurrent caller sharing initialize', async () => {
+    const server = createFakeMcpServer({tools: JOPLIN_TOOLS});
+    let release!: () => void;
+    const gate = new Promise<void>(r => {
+      release = r;
+    });
+    // Hold the initialize reply until both callers are waiting on it.
+    const slow = async (u: string, init: any) => {
+      if (JSON.parse(init.body).method === 'initialize') {
+        await gate;
+      }
+      return server.fetch(u, init);
+    };
+    const client = new McpClient({url: URL, fetchImpl: slow});
+    const ac = new AbortController();
+    const first = client.listTools(ac.signal);
+    const second = client.listTools();
+    ac.abort();
+    release();
+    await expect(first).rejects.toThrow('cancelled');
+    await expect(second).resolves.toHaveLength(3);
+    expect(server.requests.filter(r => r.method === 'initialize')).toHaveLength(
+      1,
+    );
+  });
+
+  it('a failed notifications/initialized leaves no half-open session', async () => {
+    const server = createFakeMcpServer({tools: JOPLIN_TOOLS});
+    let failNext = true;
+    const flaky = async (u: string, init: any) => {
+      const method = JSON.parse(init.body).method;
+      if (method === 'notifications/initialized' && failNext) {
+        failNext = false;
+        throw new TypeError('Network request failed');
+      }
+      return server.fetch(u, init);
+    };
+    const client = new McpClient({url: URL, fetchImpl: flaky});
+    await expect(client.listTools()).rejects.toBeInstanceOf(
+      McpUnreachableError,
+    );
+    // No tools/list was sent on the half-open session.
+    expect(server.requests.some(r => r.method === 'tools/list')).toBe(false);
+    // The next call does a full handshake again and succeeds.
+    await expect(client.listTools()).resolves.toHaveLength(3);
+    expect(server.requests.filter(r => r.method === 'initialize')).toHaveLength(
+      2,
+    );
+  });
+});
+
 describe('parseRpcResponse', () => {
   it('picks the response with the matching id out of an SSE stream', () => {
     const body =

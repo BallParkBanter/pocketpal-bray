@@ -66,6 +66,31 @@ const MAX_TOOL_PAGES = 10;
 /** Proxy/gateway answers that mean "the thing behind me is down". */
 const GATEWAY_STATUSES = new Set([502, 503, 504]);
 
+interface Session {
+  id: string | null;
+  version: string | null;
+}
+
+/** Await `p`, but reject with "cancelled" as soon as `signal` aborts. */
+const waitUnlessAborted = <T>(
+  p: Promise<T>,
+  signal?: AbortSignal,
+): Promise<T> => {
+  if (!signal) {
+    return p;
+  }
+  if (signal.aborted) {
+    return Promise.reject(new Error('cancelled'));
+  }
+  return new Promise<T>((resolve, reject) => {
+    const onAbort = () => reject(new Error('cancelled'));
+    signal.addEventListener('abort', onAbort);
+    p.then(resolve, reject).finally(() =>
+      signal.removeEventListener('abort', onAbort),
+    );
+  });
+};
+
 /**
  * Pull the JSON-RPC response with `id` out of a reply body. SSE bodies may
  * carry server notifications/requests before the response; those are skipped.
@@ -165,20 +190,25 @@ export class McpClient {
     };
   }
 
+  /**
+   * One shared initialize per client. It runs on its own timeout, never on a
+   * caller's signal, so one caller aborting can't fail the others; each caller
+   * only stops *waiting* when its own signal fires.
+   */
   private async ensureSession(signal?: AbortSignal): Promise<void> {
     if (this.protocolVersion) {
       return;
     }
     if (!this.initializing) {
-      this.initializing = this.initialize(signal).catch(e => {
+      this.initializing = this.initialize().catch(e => {
         this.initializing = null;
         throw e;
       });
     }
-    await this.initializing;
+    await waitUnlessAborted(this.initializing, signal);
   }
 
-  private async initialize(signal?: AbortSignal): Promise<void> {
+  private async initialize(): Promise<void> {
     const id = this.nextId++;
     const {msg, sessionId} = await this.post(
       {
@@ -192,21 +222,27 @@ export class McpClient {
         },
       },
       this.timeoutMs,
-      signal,
-      false,
+      undefined,
+      null,
     );
     const result = this.unwrap(msg);
-    this.sessionId = sessionId;
-    this.protocolVersion =
-      typeof result?.protocolVersion === 'string'
-        ? result.protocolVersion
-        : PROTOCOL_VERSION;
+    const session: Session = {
+      id: sessionId,
+      version:
+        typeof result?.protocolVersion === 'string'
+          ? result.protocolVersion
+          : PROTOCOL_VERSION,
+    };
+    // Commit the session only once the handshake is complete, so a failed
+    // notifications/initialized never leaves a half-open session behind.
     await this.post(
       {jsonrpc: '2.0', method: 'notifications/initialized'},
       this.timeoutMs,
-      signal,
-      true,
+      undefined,
+      session,
     );
+    this.sessionId = session.id;
+    this.protocolVersion = session.version;
   }
 
   private async request(
@@ -223,7 +259,7 @@ export class McpClient {
         {jsonrpc: '2.0', id, method, ...(params ? {params} : {})},
         timeoutMs,
         signal,
-        true,
+        {id: this.sessionId, version: this.protocolVersion},
       );
       return this.unwrap(msg);
     } catch (e) {
@@ -256,7 +292,7 @@ export class McpClient {
     payload: Record<string, any>,
     timeoutMs: number,
     callerSignal: AbortSignal | undefined,
-    withSession: boolean,
+    session: Session | null,
   ): Promise<{msg?: Record<string, any>; sessionId: string | null}> {
     if (callerSignal?.aborted) {
       throw new Error('cancelled');
@@ -266,11 +302,11 @@ export class McpClient {
       'Content-Type': 'application/json',
       Accept: 'application/json, text/event-stream',
     };
-    if (withSession && this.sessionId) {
-      headers['Mcp-Session-Id'] = this.sessionId;
+    if (session?.id) {
+      headers['Mcp-Session-Id'] = session.id;
     }
-    if (withSession && this.protocolVersion) {
-      headers['MCP-Protocol-Version'] = this.protocolVersion;
+    if (session?.version) {
+      headers['MCP-Protocol-Version'] = session.version;
     }
 
     const controller = new AbortController();

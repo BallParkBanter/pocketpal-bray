@@ -19,12 +19,14 @@ import {mcpServerStore} from './McpServerStore';
 /** Drawer route name; registered in App.tsx, opened from Settings. */
 export const MCP_SERVERS_ROUTE = 'MCP Servers';
 
-const statusText = (s?: McpServerStatus): string => {
+export const statusText = (s?: McpServerStatus): string => {
   switch (s?.state) {
     case 'ok':
       return `connected · ${s.toolCount} tools`;
     case 'unreachable':
-      return `not reachable · ${s.toolCount} tools (cached)`;
+      return s.toolCount > 0
+        ? `not reachable · ${s.toolCount} tools (cached)`
+        : 'not reachable · no tools yet';
     case 'error':
       return `error: ${s.message}`;
     case 'connecting':
