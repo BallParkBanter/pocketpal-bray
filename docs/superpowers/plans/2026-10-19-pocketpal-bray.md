@@ -63,7 +63,7 @@
 - Produces: `device/shot.sh "<caption>"` → screenshot posted with `~/bin/mm-post-image --channel galaxy-tab-s7`.
 
 - [ ] **Step 1:** Implement `lib.sh` + `install.sh`; run `device/install.sh $(scripts/bray/build-release.sh | tail -1)`. Expected: "installed com.pocketpalai.bray arm64-v8a".
-- [ ] **Step 2:** On the tablet, load Gemma: push `gemma-4-E2B-it-Q4_0.gguf` + `mmproj-gemma-4-E2B-it-Q8_0.gguf` (downloaded on ROG from `ggml-org/gemma-4-E2B-it-GGUF`) to `/sdcard/Download/models/`, add via **Models → + → Add Local Model**. Screenshot shows the model card.
+- [ ] **Step 2:** On the tablet, load Gemma **from the SD card** (Bo's rule: big files on microSD): push `gemma-4-E2B-it-Q4_0.gguf` + `mmproj-gemma-4-E2B-it-Q8_0.gguf` (downloaded on ROG from `ggml-org/gemma-4-E2B-it-GGUF`) to `/storage/6238-3662/AI-Models/`, add via **Models → + → Add Local Model**. Verify with `du` that internal storage did not grow by ~3 GB (if Add Local Model copies the file internally, record that and keep the copy only in one place). Screenshot shows the model card and a successful chat.
 - [ ] **Step 3:** Implement `chat.sh`; run `device/chat.sh "What is 17 times 23?"`. Expected JSON with `ok:true`, `tok_s` ≥ 5, response contains `391`.
 - [ ] **Step 4:** `device/shot.sh "A2: Bray build chatting on tablet"` → image appears in Mattermost channel `galaxy-tab-s7`.
 - [ ] **Step 5:** Commit `test(bray): on-device harness`.
@@ -197,10 +197,26 @@
 - Every failed eval case gets a fix (tool description, coercion, or system prompt) **and** stays in `cases.jsonl` as a regression test.
 - Try newer small models (e.g. Qwen3.5 4B, LFM2.5-2.6B) by running the same suite; switch default only when its score beats Gemma 4 E2B on this tablet.
 
-## Part D — MCP client
+## Part D — MCP client (parallel agent 3, own worktree)
 
-Separate plan after E1, once the in-app tool loop is proven on the tablet.
+### Task D1: MCP talent bridge
+
+**Files:** Create `src/services/talents/bray/mcp/McpClient.ts`, `McpTalentEngine.ts`, `McpServerStore.ts`, tests; Modify `package.json` (dep `@modelcontextprotocol/sdk`, Streamable HTTP transport only).
+
+**Interfaces:**
+- `McpServerStore`: list of `{name, url, headers?, enabled}` persisted in AsyncStorage key `bray.mcp.servers.v1`.
+- On app start and on server change: for each enabled server, `listTools()`; register one `McpTalentEngine` per tool, talent name `mcp_<server>_<tool>` (≤ 64 chars, `[a-z0-9_]`). Unreachable server → its talents return `"<server> isn't reachable right now (offline?)"`; app never blocks on it.
+- Tool results stringified and truncated to `MAX_TOOL_CHARS`.
+
+- [ ] **Step 1:** Tests against an in-process fake MCP server: tools discovered and named correctly; call round-trips; unreachable server message exact.
+- [ ] **Step 2–4:** FAIL → implement → PASS.
+- [ ] **Step 5 (device):** Add Bo's Joplin MCP (`http://192.168.1.50:9095/mcp`) in a simple settings screen (`McpServersScreen`, list + add/remove). `chat.sh "Search my Joplin for Tempus" --pal "Bray"` while online → `tools_used` includes `mcp_joplin_search_notes`, answer names the Tablet Music note. With airplane mode on (Bo), same question → falls back to `search_notes` (offline copy). Screenshots.
+- [ ] **Step 6:** Eval cases `mcp-*`. Commit.
+
+## Reporting rule
+
+Nothing is reported to Bo as working until it has been seen working **on the tablet screen** (screenshot posted to `galaxy-tab-s7`). Short messages; say what was verified and what was not.
 
 ## Parallel execution
 
-A1 → A2 → A3 sequential (one agent). Then **two agents in separate git worktrees**: Agent 1 = Part B, Agent 2 = Part C. They touch disjoint files except one line each in `src/services/talents/index.ts` (merge trivially). The tablet is shared: device steps acquire `flock /tmp/bray-device.lock` inside `device/lib.sh` so only one agent drives it at a time. Merge B and C, then E1.
+A1 → A2 → A3 sequential (one agent). Then **three agents in separate git worktrees**: Agent 1 = Part B, Agent 2 = Part C, Agent 3 = Part D. They touch disjoint files except one line each in `src/services/talents/index.ts` (merge trivially). The tablet is shared: device steps acquire `flock /tmp/bray-device.lock` inside `device/lib.sh` so only one agent drives it at a time. Merge B and C, then E1.
