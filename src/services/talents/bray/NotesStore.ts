@@ -139,7 +139,7 @@ export function rankNotes(
     const idf = Math.log(n / postings.length) + 0.1;
     for (const [idx, count] of postings) {
       const len = index.notes[idx]?.chars ?? avgLen;
-      const k = 1.2 * (0.25 + 0.75 * (len / avgLen));
+      const k = 1.2 * (0.1 + 0.9 * (len / avgLen));
       const tf = (count * 2.2) / (count + k);
       scores.set(idx, (scores.get(idx) ?? 0) + tf * idf);
       matched.set(idx, (matched.get(idx) ?? 0) + 1);
