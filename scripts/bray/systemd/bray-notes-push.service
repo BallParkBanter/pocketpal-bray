@@ -1,0 +1,11 @@
+[Unit]
+Description=Push Joplin notes to the PocketPal Bray tablet (offline notes DB)
+After=network-online.target
+
+[Service]
+Type=oneshot
+Environment=PATH=%h/.local/bin:/usr/local/bin:/usr/bin:/bin
+Environment=BRAY_LOCK_WAIT=300
+# @REPO@ is filled in by scripts/bray/install-notes-timer.sh
+ExecStart=@REPO@/scripts/bray/push-notes.sh
+TimeoutStartSec=30min
