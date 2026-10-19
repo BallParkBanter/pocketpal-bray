@@ -1,6 +1,7 @@
 import NativeShizukuShell from '../../../../specs/NativeShizukuShell';
 import {holdModelWhileAway, releaseHold} from '../holdModel';
 import {
+  PERMISSION_TIMEOUT_MS,
   listApps,
   runShell,
   ShizukuNotRunningError,
@@ -77,6 +78,33 @@ describe('runShell', () => {
     expect(native.requestPermission).toHaveBeenCalledTimes(1);
     expect(holdModelWhileAway).toHaveBeenCalledWith('shizuku-permission');
     expect(r.stdout).toBe('hi\n');
+  });
+
+  it('gives up on an unanswered permission dialog after 30 s', async () => {
+    // Fire only the 30 s permission timer at once; leave other timers alone.
+    const realSetTimeout = global.setTimeout;
+    const spy = jest.spyOn(global, 'setTimeout').mockImplementation(((
+      fn: () => void,
+      ms?: number,
+    ) => {
+      if (ms === PERMISSION_TIMEOUT_MS) {
+        fn();
+        return 0;
+      }
+      return realSetTimeout(fn, ms);
+    }) as any);
+    try {
+      native.hasPermission.mockResolvedValue(false);
+      native.requestPermission.mockReturnValue(new Promise(() => {}));
+      await expect(runShell('echo hi')).rejects.toBeInstanceOf(
+        ShizukuPermissionError,
+      );
+      expect(PERMISSION_TIMEOUT_MS).toBe(30000);
+      expect(releaseHold).toHaveBeenCalledWith('shizuku-permission');
+      expect(native.exec).not.toHaveBeenCalled();
+    } finally {
+      spy.mockRestore();
+    }
   });
 
   it('throws ShizukuPermissionError when permission is refused', async () => {

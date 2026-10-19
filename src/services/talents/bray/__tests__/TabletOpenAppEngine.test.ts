@@ -1,5 +1,6 @@
 import {
   levenshtein,
+  maxDistance,
   parseQueryActivities,
   resolveApp,
   TabletOpenAppEngine,
@@ -75,6 +76,17 @@ describe('resolveApp', () => {
     );
   });
 
+  it('caps the typo budget at a third of the query', () => {
+    expect(maxDistance('libretub')).toBe(2);
+    expect(maxDistance('tv')).toBe(0);
+    expect(maxDistance('a very long app name')).toBe(3);
+    // "clok" (4 chars, budget 1) still finds Clock; "cl" (budget 0) does not.
+    expect(resolveApp('clok', APPS).app?.label).toBe('Clock');
+    expect(resolveApp('cl', APPS).app).toBeNull();
+    // 3 edits on a 4-letter word would turn anything into anything.
+    expect(resolveApp('xyzk', APPS).app).toBeNull();
+  });
+
   it('accepts a package name', () => {
     expect(resolveApp('com.tailscale.ipn', APPS).app?.label).toBe('Tailscale');
   });
@@ -114,7 +126,7 @@ describe('TabletOpenAppEngine', () => {
   it('launches the resolved package with monkey and never asks approval', async () => {
     const r = await engine.execute({name: 'libretub'});
     expect(mockRun).toHaveBeenCalledWith(
-      'monkey -p com.github.libretube -c android.intent.category.LAUNCHER 1',
+      "monkey -p 'com.github.libretube' -c android.intent.category.LAUNCHER 1",
     );
     expect(askApproval).not.toHaveBeenCalled();
     expect(holdModelWhileAway).toHaveBeenCalledWith('tablet-open-app');

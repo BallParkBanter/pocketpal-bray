@@ -25,6 +25,7 @@ export class ShizukuPermissionError extends Error {
 }
 
 const PERMISSION_HOLD = 'shizuku-permission';
+export const PERMISSION_TIMEOUT_MS = 30_000;
 
 /** First use: Shizuku shows its own dialog (another app's activity). */
 async function ensurePermission(
@@ -36,10 +37,19 @@ async function ensurePermission(
   // The dialog backgrounds PocketPal; keep the model for the reply.
   holdModelWhileAway(PERMISSION_HOLD);
   let granted = false;
+  let timer: ReturnType<typeof setTimeout> | undefined;
   try {
-    granted = await mod.requestPermission();
+    // Nobody answering the dialog must not hang the tool forever.
+    granted = await Promise.race([
+      mod.requestPermission(),
+      new Promise<boolean>(resolve => {
+        timer = setTimeout(() => resolve(false), PERMISSION_TIMEOUT_MS);
+      }),
+    ]);
   } catch {
     granted = false;
+  } finally {
+    clearTimeout(timer);
   }
   if (!granted) {
     releaseHold(PERMISSION_HOLD);

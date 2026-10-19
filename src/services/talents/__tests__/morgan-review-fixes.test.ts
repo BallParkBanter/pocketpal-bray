@@ -5,17 +5,8 @@
  */
 import {deriveToolSchemas, resetRegisteredFlag, talentRegistry} from '../index';
 
-// Bray fork: Bray registers extra talents (tablet_*, ...); these counts are
-// about the five upstream talents only.
-const UPSTREAM_TALENTS = [
-  'render_html',
-  'calculate',
-  'datetime',
-  'web_search',
-  'read_url',
-];
-const upstreamOnly = <T extends {function: {name: string}}>(s: T[]): T[] =>
-  s.filter(x => UPSTREAM_TALENTS.includes(x.function.name));
+// Bray fork: count the five upstream talents only.
+import {upstreamOnly} from '../bray/__tests__/upstreamOnly';
 
 describe('deriveToolSchemas strict-subset filtering', () => {
   beforeEach(() => {

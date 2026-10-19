@@ -7,6 +7,7 @@ import type {
 import {
   errorResult,
   shellErrorResult,
+  shQuote,
   tabletFragment,
   truncate,
 } from './common';
@@ -21,7 +22,10 @@ import {
 
 const QUERY_CMD =
   'cmd package query-activities -a android.intent.action.MAIN -c android.intent.category.LAUNCHER';
-const MAX_DISTANCE = 3;
+/** Typo budget: at most 3 edits, and at most a third of what was typed. */
+export function maxDistance(query: string): number {
+  return Math.min(3, Math.floor(query.length / 3));
+}
 const HOLD = 'tablet-open-app';
 
 export function levenshtein(a: string, b: string): number {
@@ -90,7 +94,7 @@ export function resolveApp(name: string, apps: LaunchableApp[]): Resolution {
     .sort((x, y) => x.d - y.d);
   const best = scored[0];
   return {
-    app: best && best.d <= MAX_DISTANCE ? best.a : null,
+    app: best && best.d <= maxDistance(q) ? best.a : null,
     nearest: scored.slice(0, 3).map(s => s.a.label),
   };
 }
@@ -134,7 +138,7 @@ export class TabletOpenAppEngine implements TalentEngine {
       // reply to this tool call still gets written.
       holdModelWhileAway(HOLD);
       const r = await runShell(
-        `monkey -p ${app.package} -c android.intent.category.LAUNCHER 1`,
+        `monkey -p ${shQuote(app.package)} -c android.intent.category.LAUNCHER 1`,
       ).catch(e => {
         releaseHold(HOLD);
         throw e;
