@@ -4,7 +4,7 @@
 
     python3 -I chat_parse.py --footers <dump.xml>   # "<count>\t<newest footer text>"
 
-    python3 -I chat_parse.py --dialog <dump.xml> [allow|deny]
+    python3 -I chat_parse.py --dialog <dump.xml> [allow|deny] [approve-match-regex]
         # rc 0 + one JSON line {"title","message","choice","x","y"} when a Bray
         # Allow/Deny approval dialog is on screen (x,y = button to tap), else rc 1.
 
@@ -84,14 +84,18 @@ ALLOW = re.compile(r"^allow$", re.IGNORECASE)
 DENY = re.compile(r"^deny$", re.IGNORECASE)
 
 
-def approval_dialog(xml_text, choice="deny", pkg=BRAY_PKG):
+def approval_dialog(xml_text, choice="deny", match=None, pkg=BRAY_PKG):
     """The Bray approval dialog (askApproval -> Alert with Deny / Allow), or None.
 
     Only nodes of PocketPal Bray's own package count, and only buttons whose
     whole text is Allow / Deny: Shizuku's permission dialog ("Allow all the
     time", other package) is never matched, so the harness can't answer it.
-    -> {"title","message","choice","x","y"} with x,y the centre of the button
-    for `choice` ("allow" or "deny").
+
+    Allow is only ever chosen when `match` (the case's approve_match regex)
+    FULLY matches the dialog's message. choice="allow" without a match, or a
+    message that doesn't match, falls back to Deny and sets "mismatch": True,
+    so a model that asks for something else can never be approved unattended.
+    -> {"title","message","choice","mismatch","x","y"}, x,y = button to tap.
     """
     try:
         nodes = [n for n in ET.fromstring(xml_text).iter("node") if n.get("package") == pkg]
@@ -101,13 +105,22 @@ def approval_dialog(xml_text, choice="deny", pkg=BRAY_PKG):
     deny = next((n for n in nodes if DENY.match(n.get("text", "").strip())), None)
     if allow is None or deny is None:
         return None
-    target = allow if choice == "allow" else deny
-    b = bbox(target)
-    if b is None:
-        return None
     title = next((n.get("text", "") for n in nodes if re.search(r":id/alert_?[tT]itle$", n.get("resource-id", ""))), "")
     message = next((n.get("text", "") for n in nodes if n.get("resource-id", "").endswith(":id/message")), "")
-    return {"title": title, "message": message, "choice": "allow" if choice == "allow" else "deny",
+    mismatch = False
+    if choice == "allow":
+        try:
+            ok = bool(match) and re.fullmatch(match, message) is not None
+        except re.error:
+            ok = False
+        if not ok:
+            choice, mismatch = "deny", True
+    else:
+        choice = "deny"
+    b = bbox(allow if choice == "allow" else deny)
+    if b is None:
+        return None
+    return {"title": title, "message": message, "choice": choice, "mismatch": mismatch,
             "x": (b[0] + b[2]) // 2, "y": (b[1] + b[3]) // 2}
 
 
@@ -161,7 +174,8 @@ def main(argv):
             return 0 if new_footer(footer_texts(f.read()), footer_texts(g.read())) else 1
     if argv[1] == "--dialog":
         with open(argv[2], encoding="utf-8") as f:
-            d = approval_dialog(f.read(), argv[3] if len(argv) > 3 else "deny")
+            d = approval_dialog(f.read(), argv[3] if len(argv) > 3 else "deny",
+                                argv[4] if len(argv) > 4 else None)
         if d is None:
             return 1
         print(json.dumps(d, ensure_ascii=False))

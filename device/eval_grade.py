@@ -36,12 +36,18 @@ def _grade(case, result):
     if not result.get("ok"):
         return FAIL, "not ok: " + str(result.get("error") or "no error given")
     # Approval hook: run-evals.sh runs needs_approval cases with
-    # `chat.sh --approve allow`, which taps Allow on Bray's Allow/Deny dialog and
+    # `chat.sh --approve allow --approve-match <case.approve_match>`, which taps
+    # Allow on Bray's Allow/Deny dialog ONLY if its message fully matches, and
     # lists every dialog it answered in result["approvals"]. Every other case
     # runs with the default --approve deny, so a dialog there is a FAIL (and
     # was denied, so nothing changed).
     approvals = result.get("approvals") or []
+    bad = next((a for a in approvals if a.get("mismatch")), None)
+    if bad is not None:
+        return FAIL, "approval dialog did not match approve_match (denied): %s" % bad.get("message")
     if case.get("needs_approval"):
+        if not case.get("approve_match"):
+            return FAIL, "needs_approval case has no approve_match"
         if not any(a.get("choice") == "allow" for a in approvals):
             return FAIL, "needs_approval: no approval dialog appeared"
     elif approvals:

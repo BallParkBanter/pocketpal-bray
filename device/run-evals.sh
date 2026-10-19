@@ -3,9 +3,11 @@
 #
 # Runs each case in device/evals/cases.jsonl through chat.sh, appends one row per
 # case to docs/eval-results.md, prints "PASS n/m". Exit 1 if pass rate < 80 %.
-# needs_approval cases run with `chat.sh --approve allow` (Allow is tapped on
-# Bray's approval dialog and the dialog must have appeared); all others run with
-# the default --approve deny. SKIP (not counted in m) is no longer produced.
+# needs_approval cases need "approve_match" (a regex that must FULLY match the
+# dialog's message) and run with `chat.sh --approve allow --approve-match`;
+# Allow is tapped only on a full match, anything else is Denied and FAILs. A
+# needs_approval case without approve_match is not run (FAIL). All other cases
+# run with the default --approve deny. SKIP (not counted in m) is no longer produced.
 #
 # cases.jsonl line: {"id","prompt","pal","expect_tool","expect_regex","offline",
 #   "needs_approval", "setup"?}. With "setup", that text is sent first as a normal
@@ -67,10 +69,16 @@ run_cases() {
     local palargs=(); [[ -n "$pal" ]] && palargs=(--pal "$pal")
     # needs_approval: tap Allow on Bray's approval dialog; everything else
     # keeps chat.sh's default (Deny) so a stray dialog can't change anything.
-    local approve=()
-    [[ "$(jf "$case_json" needs_approval)" == True ]] && approve=(--approve allow)
+    local approve=() am=""
+    if [[ "$(jf "$case_json" needs_approval)" == True ]]; then
+      am="$(jf "$case_json" approve_match)"
+      approve=(--approve allow --approve-match "$am")
+    fi
     echo "== $id" >&2
-    if [[ -n "$setup" ]]; then
+    if [[ ${#approve[@]} -gt 0 && -z "$am" ]]; then
+      # Never Allow without knowing exactly what: don't even run the case.
+      out='{"ok":false,"error":"needs_approval case has no approve_match: not run"}'
+    elif [[ -n "$setup" ]]; then
       sout="$("$CHAT" "$setup" "${palargs[@]}" </dev/null)"
       if [[ "$(jf "$sout" ok)" != True ]]; then   # setup failed: don't run the follow-up
         out="$(python3 -I -c 'import json,sys; print(json.dumps({"ok": False, "error": "setup failed: " + (json.loads(sys.argv[1]).get("error") or "no error given")}))' "$sout" 2>/dev/null)"

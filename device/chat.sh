@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # device/chat.sh "<prompt>" [--pal "<name>"] [--timeout 180] [--keep-thinking] [--continue]
-#                [--approve allow|deny]
+#                [--approve allow|deny] [--approve-match <regex>]
 #
 # Drives PocketPal Bray on the tablet: new chat, optional Pal, thinking OFF,
 # types the prompt, sends, waits for the reply's metrics footer, screenshots.
@@ -8,6 +8,9 @@
 #   (multi-turn). --pal is ignored with --continue.
 # --approve: what to tap when a Bray Allow/Deny approval dialog pops up while
 #   waiting (default deny — the harness never allows anything unless asked).
+#   --approve allow REQUIRES --approve-match: Allow is tapped only when the
+#   regex fully matches the dialog's message; anything else is Denied and
+#   flagged "mismatch" (the eval then FAILs).
 #   Each dialog is screenshotted and listed in "approvals". Only PocketPal
 #   Bray's own dialog is answered, never Shizuku's permission dialog.
 # Prints ONE JSON line on stdout:
@@ -23,7 +26,7 @@ HERE="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
 # shellcheck source=lib.sh
 source "$HERE/lib.sh"
 
-PROMPT=""; PAL=""; TIMEOUT=180; KEEP_THINKING=0; CONTINUE=0; APPROVE=deny
+PROMPT=""; PAL=""; TIMEOUT=180; KEEP_THINKING=0; CONTINUE=0; APPROVE=deny; APPROVE_MATCH=""
 BRAY_MODEL_RX="${BRAY_MODEL_RX:-^gemma-4-E2B-it-Q4_0\.gguf$}"   # model to load if none is
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -33,10 +36,14 @@ while [[ $# -gt 0 ]]; do
     --continue) CONTINUE=1; shift ;;
     --approve) APPROVE="$2"; shift 2
                [[ "$APPROVE" == allow || "$APPROVE" == deny ]] || { echo "chat.sh: --approve allow|deny" >&2; exit 2; } ;;
-    -h|--help) sed -n '2,21p' "$0"; exit 0 ;;
+    --approve-match) APPROVE_MATCH="$2"; shift 2 ;;
+    -h|--help) sed -n '2,24p' "$0"; exit 0 ;;
     *) [[ -z "$PROMPT" ]] || { echo "chat.sh: unexpected arg: $1" >&2; exit 2; }; PROMPT="$1"; shift ;;
   esac
 done
+if [[ "$APPROVE" == allow && -z "$APPROVE_MATCH" ]]; then
+  echo "chat.sh: --approve allow needs --approve-match <regex> (what exactly may be allowed)" >&2; exit 2
+fi
 [[ -n "$PROMPT" ]] || { echo 'usage: device/chat.sh "<prompt>" [--pal "<name>"] [--timeout 180]' >&2; exit 2; }
 
 XML="$(mktemp)"; BASE="$(mktemp)"; APPR="$(mktemp)"; trap 'rm -f "$XML" "$BASE" "$APPR"' EXIT
@@ -51,7 +58,7 @@ emit() {
 # $APPROVE, log it to $APPR. rc 0 when a dialog was answered.
 answer_dialog() {
   local dlg shot
-  dlg="$(python3 -I "$HERE/chat_parse.py" --dialog "$XML" "$APPROVE")" || return 1
+  dlg="$(python3 -I "$HERE/chat_parse.py" --dialog "$XML" "$APPROVE" "$APPROVE_MATCH")" || return 1
   shot="$(_dev_shot "$BRAY_SHOT_DIR/approval-$(date +%Y%m%d-%H%M%S).png")"
   [[ -n "$shot" ]] && cp "$XML" "${shot%.png}.xml"   # the dialog's UI dump, next to its screenshot
   python3 -I -c 'import json,sys; d=json.loads(sys.argv[1]); d["screenshot"]=sys.argv[2] or None; print(json.dumps(d, ensure_ascii=False))' \

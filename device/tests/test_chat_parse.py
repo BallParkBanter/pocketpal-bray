@@ -97,9 +97,11 @@ DIALOG = (HERE / "fixtures" / "approval-dialog.xml").read_text(encoding="utf-8")
 
 
 class Dialog(unittest.TestCase):
+    MATCH = r"Set the screen brightness to 40%\?"
+
     def test_allow_button_centre(self):
-        d = chat_parse.approval_dialog(DIALOG, "allow")
-        self.assertEqual((d["x"], d["y"], d["choice"]), (1200, 1445, "allow"))
+        d = chat_parse.approval_dialog(DIALOG, "allow", self.MATCH)
+        self.assertEqual((d["x"], d["y"], d["choice"], d["mismatch"]), (1200, 1445, "allow", False))
         self.assertEqual(d["title"], "Set brightness")
         self.assertIn("40%", d["message"])
 
@@ -129,7 +131,22 @@ class Dialog(unittest.TestCase):
 
     def test_title_alert_title_id(self):
         real = DIALOG.replace(":id/alertTitle", ":id/alert_title")  # id seen live
-        self.assertEqual(chat_parse.approval_dialog(real, "allow")["title"], "Set brightness")
+        self.assertEqual(chat_parse.approval_dialog(real, "allow", self.MATCH)["title"], "Set brightness")
+
+    def test_allow_without_match_is_deny(self):
+        d = chat_parse.approval_dialog(DIALOG, "allow")
+        self.assertEqual((d["choice"], d["mismatch"], d["x"]), ("deny", True, 990))
+
+    def test_partial_or_other_message_is_deny(self):
+        for rx in (r"Set the screen brightness", r".*41%.*", r"uptime", r"("):
+            d = chat_parse.approval_dialog(DIALOG, "allow", rx)
+            self.assertEqual((d["choice"], d["mismatch"]), ("deny", True), rx)
+
+    def test_model_swaps_the_command(self):
+        # The case expected `uptime`; the model asked for something else.
+        other = DIALOG.replace("Set the screen brightness to 40%?", "svc·wifi·disable")
+        d = chat_parse.approval_dialog(other, "allow", r"uptime")
+        self.assertEqual((d["choice"], d["mismatch"]), ("deny", True))
 
     def test_chip_only_turn_is_an_empty_reply(self):
         # Seen live 2026-10-19 (tablet_list_files): the turn holds only the tool
@@ -151,10 +168,13 @@ class Dialog(unittest.TestCase):
 
     def test_cli(self):
         p = HERE / "fixtures" / "approval-dialog.xml"
-        r = subprocess.run([sys.executable, "-I", str(HERE.parent / "chat_parse.py"), "--dialog", str(p), "allow"],
-                           capture_output=True, text=True)
+        r = subprocess.run([sys.executable, "-I", str(HERE.parent / "chat_parse.py"), "--dialog", str(p), "allow",
+                            self.MATCH], capture_output=True, text=True)
         self.assertEqual(r.returncode, 0)
         self.assertEqual(json.loads(r.stdout)["x"], 1200)
+        r = subprocess.run([sys.executable, "-I", str(HERE.parent / "chat_parse.py"), "--dialog", str(p), "allow"],
+                           capture_output=True, text=True)
+        self.assertEqual(json.loads(r.stdout)["choice"], "deny")
         r = subprocess.run([sys.executable, "-I", str(HERE.parent / "chat_parse.py"), "--dialog",
                             str(HERE / "fixtures" / "tool-turn.xml")], capture_output=True, text=True)
         self.assertEqual(r.returncode, 1)
