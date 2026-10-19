@@ -52,7 +52,7 @@ describe('TabletBrightnessEngine', () => {
     mockAsk.mockReset();
     mockRun.mockResolvedValue({
       exitCode: 0,
-      stdout: '',
+      stdout: '255\n',
       stderr: '',
       timedOut: false,
     });
@@ -66,9 +66,13 @@ describe('TabletBrightnessEngine', () => {
       expect.stringContaining('40%'),
     );
     expect(mockRun).toHaveBeenCalledWith(
-      'settings put system screen_brightness_mode 0; settings put system screen_brightness 102',
+      'settings get system screen_brightness; settings put system screen_brightness_mode 0; settings put system screen_brightness 102',
     );
-    expect(r).toEqual({type: 'text', summary: 'Brightness set to 40%'});
+    expect(r).toEqual({
+      type: 'text',
+      summary:
+        'Done: the screen brightness is now 40% (it was 100%). Auto-brightness is off.',
+    });
   });
 
   it('maps max to 255', async () => {

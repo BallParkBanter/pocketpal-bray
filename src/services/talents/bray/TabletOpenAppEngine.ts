@@ -1,5 +1,6 @@
 import type {TalentEngine, TalentResult, ToolDefinition} from '../types';
 import {errorResult, shellErrorResult, truncate} from './common';
+import {holdModelWhileAway, releaseHold} from './holdModel';
 import {
   LaunchableApp,
   listApps,
@@ -11,6 +12,7 @@ import {
 const QUERY_CMD =
   'cmd package query-activities -a android.intent.action.MAIN -c android.intent.category.LAUNCHER';
 const MAX_DISTANCE = 3;
+const HOLD = 'tablet-open-app';
 
 export function levenshtein(a: string, b: string): number {
   const prev = Array.from({length: b.length + 1}, (_, j) => j);
@@ -118,17 +120,27 @@ export class TabletOpenAppEngine implements TalentEngine {
           truncate(`No app called "${name}". Closest: ${nearest.join(', ')}`),
         );
       }
+      // The launched app takes the foreground; keep the model loaded so the
+      // reply to this tool call still gets written.
+      holdModelWhileAway(HOLD);
       const r = await runShell(
         `monkey -p ${app.package} -c android.intent.category.LAUNCHER 1`,
-      );
+      ).catch(e => {
+        releaseHold(HOLD);
+        throw e;
+      });
       if (!/Events injected: [1-9]/.test(r.stdout)) {
+        releaseHold(HOLD);
         return errorResult(
           truncate(
             `Could not open ${app.label}: ${(r.stdout + r.stderr).trim()}`,
           ),
         );
       }
-      return {type: 'text', summary: `Opened ${app.label} (${app.package})`};
+      return {
+        type: 'text',
+        summary: `Opened ${app.label} (${app.package}). It is now on screen.`,
+      };
     } catch (e) {
       return shellErrorResult(this.name, e);
     }

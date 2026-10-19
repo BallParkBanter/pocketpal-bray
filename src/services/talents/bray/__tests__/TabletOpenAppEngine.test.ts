@@ -6,12 +6,17 @@ import {
 } from '../TabletOpenAppEngine';
 import {listApps, runShell, ShizukuNotRunningError} from '../shell';
 import {askApproval} from '../approval';
+import {holdModelWhileAway, releaseHold} from '../holdModel';
 
 jest.mock('../shell', () => {
   const actual = jest.requireActual('../shell');
   return {...actual, runShell: jest.fn(), listApps: jest.fn()};
 });
 jest.mock('../approval', () => ({askApproval: jest.fn()}));
+jest.mock('../holdModel', () => ({
+  holdModelWhileAway: jest.fn(),
+  releaseHold: jest.fn(),
+}));
 
 const mockRun = runShell as jest.Mock;
 const mockList = listApps as jest.Mock;
@@ -112,9 +117,11 @@ describe('TabletOpenAppEngine', () => {
       'monkey -p com.github.libretube -c android.intent.category.LAUNCHER 1',
     );
     expect(askApproval).not.toHaveBeenCalled();
+    expect(holdModelWhileAway).toHaveBeenCalledWith('tablet-open-app');
+    expect(releaseHold).not.toHaveBeenCalled();
     expect(r).toEqual({
       type: 'text',
-      summary: 'Opened LibreTube (com.github.libretube)',
+      summary: 'Opened LibreTube (com.github.libretube). It is now on screen.',
     });
   });
 
@@ -136,7 +143,9 @@ describe('TabletOpenAppEngine', () => {
       timedOut: false,
     }));
     const r = await engine.execute({name: 'LibreTube'});
-    expect(r.summary).toBe('Opened libretube (com.github.libretube)');
+    expect(r.summary).toBe(
+      'Opened libretube (com.github.libretube). It is now on screen.',
+    );
   });
 
   it('requires a name', async () => {
@@ -161,5 +170,6 @@ describe('TabletOpenAppEngine', () => {
     });
     const r = await engine.execute({name: 'LibreTube'});
     expect(r.type).toBe('error');
+    expect(releaseHold).toHaveBeenCalledWith('tablet-open-app');
   });
 });

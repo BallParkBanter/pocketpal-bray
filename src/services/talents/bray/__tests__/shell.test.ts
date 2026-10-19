@@ -1,10 +1,16 @@
 import NativeShizukuShell from '../../../../specs/NativeShizukuShell';
+import {holdModelWhileAway, releaseHold} from '../holdModel';
 import {
   listApps,
   runShell,
   ShizukuNotRunningError,
   ShizukuPermissionError,
 } from '../shell';
+
+jest.mock('../holdModel', () => ({
+  holdModelWhileAway: jest.fn(),
+  releaseHold: jest.fn(),
+}));
 
 jest.mock('../../../../specs/NativeShizukuShell', () => ({
   __esModule: true,
@@ -69,6 +75,7 @@ describe('runShell', () => {
     native.hasPermission.mockResolvedValue(false);
     const r = await runShell('echo hi');
     expect(native.requestPermission).toHaveBeenCalledTimes(1);
+    expect(holdModelWhileAway).toHaveBeenCalledWith('shizuku-permission');
     expect(r.stdout).toBe('hi\n');
   });
 
@@ -78,6 +85,7 @@ describe('runShell', () => {
     await expect(runShell('echo hi')).rejects.toBeInstanceOf(
       ShizukuPermissionError,
     );
+    expect(releaseHold).toHaveBeenCalledWith('shizuku-permission');
     expect(native.exec).not.toHaveBeenCalled();
   });
 });

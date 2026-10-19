@@ -1,4 +1,5 @@
 import NativeShizukuShell from '../../../specs/NativeShizukuShell';
+import {holdModelWhileAway, releaseHold} from './holdModel';
 
 export interface ShellResult {
   exitCode: number;
@@ -23,6 +24,29 @@ export class ShizukuPermissionError extends Error {
   }
 }
 
+const PERMISSION_HOLD = 'shizuku-permission';
+
+/** First use: Shizuku shows its own dialog (another app's activity). */
+async function ensurePermission(
+  mod: NonNullable<typeof NativeShizukuShell>,
+): Promise<void> {
+  if (await mod.hasPermission()) {
+    return;
+  }
+  // The dialog backgrounds PocketPal; keep the model for the reply.
+  holdModelWhileAway(PERMISSION_HOLD);
+  let granted = false;
+  try {
+    granted = await mod.requestPermission();
+  } catch {
+    granted = false;
+  }
+  if (!granted) {
+    releaseHold(PERMISSION_HOLD);
+    throw new ShizukuPermissionError();
+  }
+}
+
 /**
  * Run `sh -c cmd` on the tablet as the shell uid via Shizuku.
  * The first call shows Shizuku's own permission dialog if needed.
@@ -35,11 +59,7 @@ export async function runShell(
   if (!mod || !(await mod.isRunning())) {
     throw new ShizukuNotRunningError();
   }
-  if (!(await mod.hasPermission())) {
-    if (!(await mod.requestPermission())) {
-      throw new ShizukuPermissionError();
-    }
-  }
+  await ensurePermission(mod);
   const raw = await mod.exec(cmd, timeoutMs);
   const parsed = JSON.parse(raw);
   return {
@@ -61,11 +81,7 @@ export async function listApps(): Promise<LaunchableApp[]> {
   if (!mod || !(await mod.isRunning())) {
     throw new ShizukuNotRunningError();
   }
-  if (!(await mod.hasPermission())) {
-    if (!(await mod.requestPermission())) {
-      throw new ShizukuPermissionError();
-    }
-  }
+  await ensurePermission(mod);
   const parsed = JSON.parse(await mod.listApps());
   return (Array.isArray(parsed) ? parsed : [])
     .filter(a => a && typeof a.package === 'string')

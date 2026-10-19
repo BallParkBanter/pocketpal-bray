@@ -67,19 +67,29 @@ export class TabletBrightnessEngine implements TalentEngine {
       return errorResult(`Bo declined: ${action}`);
     }
     const raw = Math.round((pct * 255) / 100);
+    let before = '';
     try {
       const r = await runShell(
-        `settings put system screen_brightness_mode 0; settings put system screen_brightness ${raw}`,
+        `settings get system screen_brightness; settings put system screen_brightness_mode 0; settings put system screen_brightness ${raw}`,
       );
       if (r.exitCode !== 0) {
         return errorResult(
           truncate(`tablet_set_brightness failed: ${r.stderr || r.stdout}`),
         );
       }
+      const old = Number(r.stdout.trim().split('\n')[0]);
+      if (r.stdout.trim() && Number.isFinite(old)) {
+        before = ` (it was ${Math.round((old * 100) / 255)}%)`;
+      }
     } catch (e) {
       return shellErrorResult(this.name, e);
     }
-    return {type: 'text', summary: `Brightness set to ${pct}%`};
+    // A bare "set to N%" made the small model end its turn with no reply;
+    // a full sentence gives it something to pass on.
+    return {
+      type: 'text',
+      summary: `Done: the screen brightness is now ${pct}%${before}. Auto-brightness is off.`,
+    };
   }
 
   toToolDefinition(): ToolDefinition {
