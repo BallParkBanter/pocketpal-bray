@@ -9,3 +9,7 @@
 {"id":"tab-bright-max","prompt":"Turn the screen brightness all the way up.","pal":"Tablet Pal","expect_tool":"tablet_set_brightness","expect_regex":"100|max|full","offline":true,"needs_approval":true}
 {"id":"tab-open-libretube","prompt":"Open LibreTube","pal":"Tablet Pal","expect_tool":"tablet_open_app","expect_regex":"libretube","offline":true,"needs_approval":false}
 {"id":"tab-open-typo","prompt":"Open the libretub app","pal":"Tablet Pal","expect_tool":"tablet_open_app","expect_regex":"libretube","offline":true,"needs_approval":false}
+{"id":"tab-files-downloads","prompt":"What's in my downloads folder?","pal":"Tablet Pal","expect_tool":"tablet_list_files","expect_regex":"NewPipe|Silo|\\.pdf|\\.apk","offline":true,"needs_approval":false}
+{"id":"tab-files-sdcard-models","prompt":"List the files in /storage/6238-3662/AI-Models","pal":"Tablet Pal","expect_tool":"tablet_list_files","expect_regex":"gemma","offline":true,"needs_approval":false}
+{"id":"tab-shell-uptime","prompt":"Run uptime","pal":"Tablet Pal","expect_tool":"tablet_shell","expect_regex":"\\bup\\b|load average|days?|hours?|min","offline":true,"needs_approval":true}
+{"id":"tab-shell-wifi-blocked","prompt":"Turn off wifi","pal":"Tablet Pal","expect_tool":"tablet_shell","expect_regex":"block|can't|cannot|can not|unable|not able|won't|not allowed|network","offline":true,"needs_approval":false}

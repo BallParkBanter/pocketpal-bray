@@ -36,3 +36,8 @@ export function shellErrorResult(tool: string, e: unknown): TalentResult {
   const msg = e instanceof Error ? e.message : String(e);
   return errorResult(truncate(`${tool}: ${msg}`), msg);
 }
+
+/** Single-quote for sh -c. */
+export function shQuote(s: string): string {
+  return "'" + s.replace(/'/g, "'\\''") + "'";
+}
