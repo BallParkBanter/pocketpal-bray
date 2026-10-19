@@ -39,7 +39,7 @@ const STOP_WORDS = new Set(
 
 export function tokenize(text: string): string[] {
   const out: string[] = [];
-  for (const tok of text.toLowerCase().match(/[a-z0-9À-￿]+/g) ?? []) {
+  for (const tok of text.toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? []) {
     if (tok.length >= 3 && tok.length <= 24 && !STOP_WORDS.has(tok)) {
       out.push(tok);
     }
@@ -54,23 +54,58 @@ export function clip(text: string, max: number = MAX_TOOL_CHARS): string {
   return text.slice(0, max - TRUNCATION_MARKER.length) + TRUNCATION_MARKER;
 }
 
-/** Rank notes by summed term weight for the query. Pure; no I/O. */
+/**
+ * Rank notes for a query. Per matched term: dampened count x IDF (log(N/df)),
+ * plus a bonus when the term is in the title; the total is multiplied up when
+ * every (known) query term matched. Pure; no I/O. This deliberately replaces
+ * the plan's literal "summed term weight", which buried rare-term matches.
+ */
 export function rankNotes(
   index: NotesIndex,
   query: string,
   limit = 5,
 ): NoteHit[] {
-  const scores = new Map<number, number>();
+  const n = Math.max(index.notes.length, 1);
+  const terms: Array<Array<[number, number]>> = [];
+  const termWords: string[] = [];
   for (const term of new Set(tokenize(query))) {
-    let postings = index.terms[term];
-    if (!postings && term.length > 3 && term.endsWith('s')) {
-      postings = index.terms[term.slice(0, -1)];
+    let word = term;
+    let postings = index.terms[word];
+    if (!postings && word.length > 3 && word.endsWith('s')) {
+      word = word.slice(0, -1);
+      postings = index.terms[word];
     }
-    for (const [idx, count] of postings ?? []) {
-      scores.set(idx, (scores.get(idx) ?? 0) + count);
+    if (postings) {
+      terms.push(postings);
+      termWords.push(word);
     }
   }
-  return [...scores.entries()]
+  const scores = new Map<number, number>();
+  const matched = new Map<number, number>();
+  terms.forEach(postings => {
+    const idf = Math.log(n / postings.length) + 0.1;
+    for (const [idx, count] of postings) {
+      scores.set(idx, (scores.get(idx) ?? 0) + (1 + Math.log(count)) * idf);
+      matched.set(idx, (matched.get(idx) ?? 0) + 1);
+    }
+  });
+  const ranked = [...scores.entries()].map(([idx, base]) => {
+    let score = base;
+    const note = index.notes[idx];
+    if (note) {
+      const titleToks = new Set(tokenize(note.title));
+      termWords.forEach((w, i) => {
+        if (titleToks.has(w)) {
+          score += 4 * (Math.log(n / terms[i].length) + 0.1);
+        }
+      });
+      if (terms.length > 1 && matched.get(idx) === terms.length) {
+        score *= 1.5;
+      }
+    }
+    return [idx, score] as [number, number];
+  });
+  return ranked
     .sort((a, b) => b[1] - a[1] || a[0] - b[0])
     .slice(0, limit)
     .map(([idx, score]) => ({note: index.notes[idx], score}))
@@ -83,43 +118,53 @@ export function rankNotes(
  * are read on demand.
  */
 export class NotesStore {
-  private index: NotesIndex | null | undefined;
+  private index: NotesIndex | null = null;
+  private stamp = '';
   private loading: Promise<NotesIndex | null> | null = null;
 
   private get dir(): string {
     return `${RNFS.ExternalDirectoryPath}/notes-db`;
   }
 
+  /**
+   * The index is re-read whenever index.json changes on disk (mtime/size), so a
+   * push-notes.sh sync shows up without restarting the app. One stat per call.
+   */
   load(): Promise<NotesIndex | null> {
-    if (this.index !== undefined) {
-      return Promise.resolve(this.index);
-    }
     if (!this.loading) {
-      this.loading = this.readIndex().then(idx => {
-        // A missing index is not cached, so a sync that lands later is picked up.
-        if (idx) {
-          this.index = idx;
-        }
+      this.loading = this.refresh().finally(() => {
         this.loading = null;
-        return idx;
       });
     }
     return this.loading;
   }
 
-  private async readIndex(): Promise<NotesIndex | null> {
+  private async refresh(): Promise<NotesIndex | null> {
+    const path = `${this.dir}/index.json`;
     try {
-      const path = `${this.dir}/index.json`;
-      if (!(await RNFS.exists(path))) {
-        return null;
+      const st = await RNFS.stat(path);
+      const stamp = `${new Date(st.mtime as any).getTime()}:${st.size}`;
+      if (this.index && stamp === this.stamp) {
+        return this.index;
       }
       const parsed = JSON.parse(await RNFS.readFile(path, 'utf8'));
       if (!parsed || !Array.isArray(parsed.notes) || !parsed.terms) {
-        return null;
+        return this.index;
       }
-      return parsed as NotesIndex;
+      this.index = parsed as NotesIndex;
+      this.stamp = stamp;
+      return this.index;
     } catch {
-      return null;
+      // Missing file -> no index. A transient read error keeps the last good one.
+      try {
+        if (!(await RNFS.exists(path))) {
+          this.index = null;
+          this.stamp = '';
+        }
+      } catch {
+        /* keep cached */
+      }
+      return this.index;
     }
   }
 
@@ -137,9 +182,10 @@ export class NotesStore {
     }
   }
 
-  /** Test hook / force re-read after a sync. */
+  /** Test hook / force re-read. */
   reset(): void {
-    this.index = undefined;
+    this.index = null;
+    this.stamp = '';
     this.loading = null;
   }
 }

@@ -69,3 +69,12 @@ def test_sensitive_notes_excluded():
     assert [n["id"] for n in idx["notes"]] == ["s4"]
     assert set(bodies) == {"s4.md"}
     assert "hunter2" not in idx["terms"]
+
+
+def test_long_note_keeps_its_rare_term():
+    common = " ".join(f"common{i % 150}" for i in range(2000))  # 150 frequent terms
+    files = [("F/long.md", "Long", "L1", "F", common + " xylophonequartz")]
+    files += [("F/o%d.md" % i, "Other%d" % i, "O%d" % i, "F", common) for i in range(5)]
+    idx, _ = run(files)
+    assert [0, 1] in idx["terms"]["xylophonequartz"]
+    assert len([1 for t, p in idx["terms"].items() if any(e[0] == 0 for e in p)]) <= notes_index.MAX_TERMS_PER_NOTE + 1

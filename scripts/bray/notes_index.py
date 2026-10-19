@@ -10,6 +10,7 @@ Prints  "indexed N notes".
 """
 import datetime
 import json
+import math
 import os
 import re
 import sys
@@ -31,7 +32,7 @@ MAX_DF = 400  # terms present in more notes than this are dropped
 TITLE_WEIGHT = 5
 MIN_LEN = 3
 MAX_LEN = 24  # longer tokens are hashes/keys/URLs, never search terms
-MAX_TERMS_PER_NOTE = 60  # keeps index.json small enough to parse fast on the tablet
+MAX_TERMS_PER_NOTE = 100  # per-note cap, chosen by weight x rarity (see build); keeps index.json < ~4 MB
 TOKEN_RE = re.compile(r"[^\W_]+", re.UNICODE)
 
 STOP_WORDS = frozenset(
@@ -91,7 +92,7 @@ def iter_mirror(mirror_dir):
 def build(mirror_dir, out_dir):
     notes_dir = os.path.join(out_dir, "notes")
     os.makedirs(notes_dir, exist_ok=True)
-    notes, postings, dropped = [], {}, []
+    notes, per_note, dropped = [], [], []
     for path in iter_mirror(mirror_dir):
         with open(path, encoding="utf-8", errors="replace") as fh:
             meta, body = parse_note(fh.read())
@@ -111,12 +112,27 @@ def build(mirror_dir, out_dir):
         with open(os.path.join(notes_dir, nid + ".md"), "w", encoding="utf-8") as out:
             out.write(body)
         counts = Counter(tokens(body))
-        for tok in tokens(title):
+        title_toks = set(tokens(title))
+        for tok in title_toks:
             counts[tok] += TITLE_WEIGHT
-        if len(counts) > MAX_TERMS_PER_NOTE:
-            counts = Counter(dict(counts.most_common(MAX_TERMS_PER_NOTE)))
-        idx = len(notes)
         notes.append({"id": nid, "title": title, "folder": folder, "chars": len(body)})
+        per_note.append((counts, title_toks))
+    # Pass 2: document frequency, then keep each note's most *findable* terms
+    # (count x rarity), always including its title words. Frequent generic words
+    # would otherwise crowd out the rare terms people actually search for.
+    n_notes = max(len(notes), 1)
+    df = Counter()
+    for counts, _ in per_note:
+        df.update(counts.keys())
+    postings = {}
+    for idx, (counts, title_toks) in enumerate(per_note):
+        if len(counts) > MAX_TERMS_PER_NOTE:
+            ranked = sorted(
+                counts,
+                key=lambda t: (t in title_toks, counts[t] * math.log(n_notes / df[t])),
+                reverse=True,
+            )
+            counts = {t: counts[t] for t in ranked[:MAX_TERMS_PER_NOTE]}
         for term, n in counts.items():
             postings.setdefault(term, []).append([idx, n])
     terms = {t: p for t, p in postings.items() if len(p) <= MAX_DF}

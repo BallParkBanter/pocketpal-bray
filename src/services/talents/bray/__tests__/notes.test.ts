@@ -8,10 +8,12 @@ import {
 } from '../NotesStore';
 import {SearchNotesEngine} from '../SearchNotesEngine';
 import {ReadNoteEngine} from '../ReadNoteEngine';
+import {rankNotes, tokenize} from '../NotesStore';
 
 jest.mock('@dr.pogodin/react-native-fs', () => ({
   ExternalDirectoryPath: '/ext',
   exists: jest.fn(),
+  stat: jest.fn(),
   readFile: jest.fn(),
 }));
 
@@ -43,8 +45,12 @@ const BODIES: Record<string, string> = {
   '/ext/notes-db/notes/ccc.md': 'milk eggs',
 };
 
-function present() {
+function present(mtime = 1000) {
   fsMock.exists.mockResolvedValue(true);
+  (fsMock.stat as jest.Mock).mockResolvedValue({
+    mtime: new Date(mtime),
+    size: 10,
+  });
   fsMock.readFile.mockImplementation(async (p: string) => {
     if (p === '/ext/notes-db/index.json') {
       return JSON.stringify(INDEX);
@@ -74,6 +80,7 @@ describe('search_notes', () => {
 
   it('returns the exact missing-index message', async () => {
     fsMock.exists.mockResolvedValue(false);
+    (fsMock.stat as jest.Mock).mockRejectedValue(new Error('ENOENT'));
     const r = await new SearchNotesEngine(new NotesStore()).execute({
       query: 'anything',
     });
@@ -137,8 +144,58 @@ describe('read_note', () => {
     const engine = new ReadNoteEngine(new NotesStore());
     expect((await engine.execute({id: '../../etc/passwd'})).type).toBe('error');
     fsMock.exists.mockResolvedValue(false);
+    (fsMock.stat as jest.Mock).mockRejectedValue(new Error('ENOENT'));
     expect(
       (await new ReadNoteEngine(new NotesStore()).execute({id: 'aaa'})).summary,
     ).toBe(NOTES_MISSING_MESSAGE);
+  });
+});
+
+describe('NotesStore reload', () => {
+  it('re-reads index.json when its mtime changes, not otherwise', async () => {
+    present(1000);
+    const store = new NotesStore();
+    await store.load();
+    await store.load();
+    const reads = () =>
+      fsMock.readFile.mock.calls.filter(c =>
+        String(c[0]).endsWith('index.json'),
+      ).length;
+    expect(reads()).toBe(1);
+    present(2000);
+    await store.load();
+    expect(reads()).toBe(2);
+  });
+});
+
+describe('rankNotes (IDF)', () => {
+  // 50 notes; "size" is everywhere, "filter" is rarer, "zebra" unique.
+  const notes = Array.from({length: 50}, (_, i) => ({
+    id: `n${i}`,
+    title: i === 7 ? 'AC Filter Size' : `Other ${i}`,
+    folder: 'F',
+    chars: 10,
+  }));
+  const index: NotesIndex = {
+    version: 1,
+    built: 'x',
+    notes,
+    terms: {
+      size: notes.map((_, i) => [i, i === 7 ? 6 : 12] as [number, number]),
+      filter: [
+        [7, 6],
+        [3, 4],
+      ],
+      zebra: [[20, 1]],
+    },
+  };
+  it('puts the title-matching rare-term note first despite higher raw counts elsewhere', () => {
+    expect(rankNotes(index, 'ac filter size')[0].note.id).toBe('n7');
+  });
+  it('finds a unique term in a note', () => {
+    expect(rankNotes(index, 'zebra')[0].note.id).toBe('n20');
+  });
+  it('tokenizes unicode letters, not punctuation', () => {
+    expect(tokenize('café — “quoted”')).toEqual(['café', 'quoted']);
   });
 });

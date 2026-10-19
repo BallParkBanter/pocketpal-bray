@@ -13,12 +13,23 @@ MIRROR="${BRAY_MIRROR:-$HOME/projects/joplin-mirror}"
 OUT="${BRAY_NOTES_OUT:-/tmp/bray-notes}"
 DEST="/sdcard/Android/data/$BRAY_PKG/files/notes-db"
 
+MIN_NOTES="${BRAY_MIN_NOTES:-1000}"
+
+# Safety: never prune/push from a missing mirror or an implausibly small export.
+[[ -d "$MIRROR" ]] || { echo "push-notes.sh: mirror $MIRROR is not a directory - aborting, tablet untouched" >&2; exit 3; }
+
 # Best effort: the mirror normally pulls itself every minute.
 git -C "$MIRROR" pull --ff-only -q 2>/dev/null || true
 
 rm -rf "$OUT"
 python3 -I "$HERE/notes_index.py" "$MIRROR" "$OUT" >&2
 count="$(find "$OUT/notes" -name '*.md' | wc -l)"
+
+if (( count < MIN_NOTES )); then
+  echo "push-notes.sh: only $count notes exported (< $MIN_NOTES) - aborting, tablet untouched" >&2
+  exit 3
+fi
+[[ -z "${BRAY_DRY_RUN:-}" ]] || { echo "dry run: would push $count notes"; exit 0; }
 
 _push() {
   local serial
