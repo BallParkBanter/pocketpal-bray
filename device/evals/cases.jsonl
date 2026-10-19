@@ -4,3 +4,8 @@
 {"id":"base-followup","setup":"My favorite color is teal. Please remember that.","prompt":"What is my favorite color? Answer in one word.","pal":"No Pal","expect_tool":null,"expect_regex":"teal","offline":true,"needs_approval":false}
 {"id":"mcp-joplin-search","prompt":"Search my Joplin for Tempus","pal":"MCP Pal","expect_tool":"mcp_joplin_search_notes","expect_regex":"(?i)tablet music","offline":false,"needs_approval":false}
 {"id":"mcp-joplin-navidrome","prompt":"Look in my Joplin notes for Navidrome. What note titles come up?","pal":"MCP Pal","expect_tool":"mcp_joplin_search_notes","expect_regex":"(?i)navidrome","offline":false,"needs_approval":false}
+{"id":"notes-batting-cage","prompt":"What do my notes say about the batting cage plug?","pal":"Notes Pal","expect_tool":"search_notes","expect_regex":"ZEN14","offline":true,"needs_approval":false}
+{"id":"notes-ac-filter","prompt":"Search my notes: what size is the AC filter?","pal":"Notes Pal","expect_tool":"search_notes","expect_regex":"18\\s*x\\s*20","offline":true,"needs_approval":false}
+{"id":"notes-telluride-lx","prompt":"In my notes, what is the starting price of the base LX trim of the Kia Telluride?","pal":"Notes Pal","expect_tool":"search_notes","expect_regex":"36,?390","offline":true,"needs_approval":false}
+{"id":"notes-air-return","prompt":"Check my notes for the master bathroom air return size.","pal":"Notes Pal","expect_tool":"search_notes","expect_regex":"11\\.5\\s*x\\s*7\\.75","offline":false,"needs_approval":false}
+{"id":"notes-read-by-title","prompt":"Open my note titled Kia Telluride Trim Levels and tell me the approximate price of the S trim.","pal":"Notes Pal","expect_tool":"read_note","expect_regex":"39,?390","offline":false,"needs_approval":false}
