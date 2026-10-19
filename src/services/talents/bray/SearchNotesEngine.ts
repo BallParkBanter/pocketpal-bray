@@ -1,7 +1,9 @@
 import {TalentEngine, TalentResult, ToolDefinition} from '../types';
 import {
   NOTES_MISSING_MESSAGE,
+  NoteMeta,
   NotesStore,
+  MAX_TOOL_CHARS,
   clip,
   matchPosition,
   tokenize,
@@ -30,6 +32,45 @@ export function snippetOf(
     .slice(0, chars);
 }
 
+/**
+ * Build the result list within MAX_TOOL_CHARS without ever cutting a result mid-line.
+ * The best hit's excerpt is shrunk first, then the others', and only then are whole
+ * trailing results dropped.
+ */
+export function composeResults(
+  notes: NoteMeta[],
+  bodies: Array<string | null>,
+  terms: string[],
+  max: number = MAX_TOOL_CHARS,
+): string {
+  const build = (count: number, top: number, rest: number): string =>
+    notes
+      .slice(0, count)
+      .map((note, i) => {
+        const snippet = snippetOf(bodies[i], terms, i === 0 ? top : rest);
+        return (
+          `${i + 1}. ${note.title} (${note.folder}) [id: ${note.id}]` +
+          (snippet ? `\n${snippet}` : '')
+        );
+      })
+      .join('\n');
+  const attempts: Array<[number, number]> = [
+    [TOP_SNIPPET_CHARS, SNIPPET_CHARS],
+    [SNIPPET_CHARS, SNIPPET_CHARS],
+    [SNIPPET_CHARS, 60],
+    [60, 30],
+  ];
+  for (let count = notes.length; count >= 1; count--) {
+    for (const [top, rest] of attempts) {
+      const out = build(count, top, rest);
+      if (out.length <= max) {
+        return out;
+      }
+    }
+  }
+  return clip(build(1, 0, 0), max);
+}
+
 export class SearchNotesEngine implements TalentEngine {
   readonly name = 'search_notes';
   readonly recommendedContextTokens = 500;
@@ -46,26 +87,28 @@ export class SearchNotesEngine implements TalentEngine {
     if (!index) {
       return {type: 'text', summary: NOTES_MISSING_MESSAGE};
     }
-    this.store.lastTerms = tokenize(query);
+    // Stale state from an earlier search must never leak into read_note.
+    this.store.lastTerms = [];
+    this.store.lastHitIds = [];
+    const terms = tokenize(query);
     const hits = rankNotes(index, query, 5);
     if (hits.length === 0) {
       return {type: 'text', summary: `No notes matched "${query}".`};
     }
+    this.store.lastTerms = terms;
     this.store.lastHitIds = hits.map(h => h.note.id);
-    const lines: string[] = [];
-    for (let i = 0; i < hits.length; i++) {
-      const {note} = hits[i];
-      const snippet = snippetOf(
-        await this.store.readBody(note.id),
-        this.store.lastTerms,
-        i === 0 ? TOP_SNIPPET_CHARS : SNIPPET_CHARS,
-      );
-      lines.push(
-        `${i + 1}. ${note.title} (${note.folder}) [id: ${note.id}]` +
-          (snippet ? `\n${snippet}` : ''),
-      );
+    const bodies: Array<string | null> = [];
+    for (const h of hits) {
+      bodies.push(await this.store.readBody(h.note.id));
     }
-    return {type: 'text', summary: clip(lines.join('\n'))};
+    return {
+      type: 'text',
+      summary: composeResults(
+        hits.map(h => h.note),
+        bodies,
+        terms,
+      ),
+    };
   }
 
   toToolDefinition(): ToolDefinition {

@@ -2,6 +2,7 @@ import * as RNFS from '@dr.pogodin/react-native-fs';
 
 /** Tool results fed back to the model must fit n_ctx=2048. */
 export const MAX_TOOL_CHARS = 1200;
+const MIN_FOCUS_CHARS = 500;
 export const TRUNCATION_MARKER = '\n…[truncated]';
 export const NOTES_MISSING_MESSAGE =
   "Your notes aren't on the tablet yet — ask Claude to sync them.";
@@ -86,6 +87,7 @@ export function focusClip(
   terms: string[],
   max: number = MAX_TOOL_CHARS,
 ): string {
+  max = Math.max(max, MIN_FOCUS_CHARS); // a very long title must not make this negative
   if (body.length <= max) {
     return body;
   }

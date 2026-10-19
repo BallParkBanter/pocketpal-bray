@@ -32,6 +32,9 @@ export class ReadNoteEngine implements TalentEngine {
       : '';
     let noteId =
       byNumber || (id && index.notes.some(n => n.id === id) ? id : '');
+    // Search terms only steer the excerpt when the note came from a search result
+    // or an explicit id, not from a title lookup.
+    const useTerms = !!noteId;
     if (!noteId && title) {
       const lower = title.toLowerCase();
       noteId =
@@ -52,12 +55,13 @@ export class ReadNoteEngine implements TalentEngine {
       return {type: 'error', summary, errorMessage: summary};
     }
     const meta = index.notes.find(n => n.id === noteId)!;
+    const title80 = meta.title.slice(0, 80);
     return {
       type: 'text',
-      summary: `${meta.title}\n${focusClip(
+      summary: `${title80}\n${focusClip(
         body.trim(),
-        this.store.lastTerms,
-        MAX_TOOL_CHARS - meta.title.length - 1,
+        useTerms ? this.store.lastTerms : [],
+        MAX_TOOL_CHARS - title80.length - 1,
       )}`,
     };
   }

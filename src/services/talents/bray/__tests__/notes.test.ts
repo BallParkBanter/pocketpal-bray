@@ -6,9 +6,9 @@ import {
   NotesIndex,
   NotesStore,
 } from '../NotesStore';
-import {SearchNotesEngine} from '../SearchNotesEngine';
+import {SearchNotesEngine, composeResults} from '../SearchNotesEngine';
 import {ReadNoteEngine} from '../ReadNoteEngine';
-import {rankNotes, tokenize} from '../NotesStore';
+import {focusClip, rankNotes, tokenize} from '../NotesStore';
 
 jest.mock('@dr.pogodin/react-native-fs', () => ({
   ExternalDirectoryPath: '/ext',
@@ -226,5 +226,61 @@ describe('read_note by result number', () => {
     const r = await new ReadNoteEngine(store).execute({id: '2'});
     expect(r.type).toBe('text');
     expect(r.summary.startsWith('HA devices')).toBe(true);
+  });
+});
+
+describe('review minors', () => {
+  it('a zero-hit search clears old hits so read_note "2" does not resolve', async () => {
+    present();
+    const store = new NotesStore();
+    await new SearchNotesEngine(store).execute({query: 'batting cage plug'});
+    await new SearchNotesEngine(store).execute({query: 'zzzzqqq'});
+    const r = await new ReadNoteEngine(store).execute({id: '2'});
+    expect(r.type).toBe('error');
+  });
+
+  it('focusClip survives a tiny max (very long title)', () => {
+    const long = 'x'.repeat(3000);
+    expect(() => focusClip(long, ['x'], -50)).not.toThrow();
+    expect(focusClip(long, ['x'], -50).length).toBeGreaterThan(100);
+  });
+
+  it('search_notes output never exceeds the limit or cuts a result mid-line', () => {
+    const notes = Array.from({length: 5}, (_, i) => ({
+      id: `id${i}`.padEnd(32, '0'),
+      title: `A fairly long note title number ${i} for budget testing`,
+      folder: 'Some/Deep/Folder/Path',
+      chars: 5000,
+    }));
+    const bodies = notes.map(() => 'word '.repeat(1000));
+    const out = composeResults(notes, bodies, ['word']);
+    expect(out.length).toBeLessThanOrEqual(MAX_TOOL_CHARS);
+    expect(out).not.toContain('…[truncated]');
+    expect(out.split('\n').filter(l => /^\d\. /.test(l))).toHaveLength(5);
+  });
+
+  it('BM25 length norm: a short focused note beats a long note with a higher raw count', () => {
+    const notes = [
+      {id: 'long', title: 'Giant dump', folder: 'F', chars: 200000},
+      {id: 'short', title: 'Focused', folder: 'F', chars: 400},
+      ...Array.from({length: 20}, (_, i) => ({
+        id: `f${i}`,
+        title: `Filler ${i}`,
+        folder: 'F',
+        chars: 2000,
+      })),
+    ];
+    const index: NotesIndex = {
+      version: 1,
+      built: 'x',
+      notes,
+      terms: {
+        gizmo: [
+          [0, 40],
+          [1, 3],
+        ],
+      },
+    };
+    expect(rankNotes(index, 'gizmo')[0].note.id).toBe('short');
   });
 });
