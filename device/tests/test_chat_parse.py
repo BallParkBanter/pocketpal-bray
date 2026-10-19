@@ -127,6 +127,28 @@ class Dialog(unittest.TestCase):
         self.assertEqual(chat_parse.footer_texts(empty)[0], "0ms/token, 0.00 tokens/sec")
         self.assertIsNone(chat_parse.parse(empty)["ttft_ms"])
 
+    def test_title_alert_title_id(self):
+        real = DIALOG.replace(":id/alertTitle", ":id/alert_title")  # id seen live
+        self.assertEqual(chat_parse.approval_dialog(real, "allow")["title"], "Set brightness")
+
+    def test_chip_only_turn_is_an_empty_reply(self):
+        # Seen live 2026-10-19 (tablet_list_files): the turn holds only the tool
+        # chip and a TTFT-less footer. The chip label is not a reply.
+        xml = """<hierarchy>
+  <node resource-id="header-view" bounds="[0,0][1600,184]" text="" content-desc="" />
+  <node resource-id="" text="" bounds="[0,1000][1600,1300]"
+        content-desc="\U000f0be0, used tablet_list_files \u00b7 12 tokens \u00b7 1s, 0ms/token, 0.00 tokens/sec">
+    <node resource-id="tool-used-chip" text="" content-desc="" bounds="[40,1100][600,1150]">
+      <node resource-id="" text="used tablet_list_files \u00b7 12 tokens \u00b7 1s" content-desc="" bounds="[80,1100][600,1150]" />
+    </node>
+    <node resource-id="footer-timing" text="0ms/token, 0.00 tokens/sec" content-desc="" bounds="[80,1200][600,1240]" />
+  </node>
+</hierarchy>"""
+        p = chat_parse.parse(xml)
+        self.assertEqual(p["response"], "")
+        self.assertEqual(p["tools_used"], ["tablet_list_files"])
+        self.assertEqual(p["tok_s"], 0.0)
+
     def test_cli(self):
         p = HERE / "fixtures" / "approval-dialog.xml"
         r = subprocess.run([sys.executable, "-I", str(HERE.parent / "chat_parse.py"), "--dialog", str(p), "allow"],

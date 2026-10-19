@@ -1,5 +1,10 @@
-import type {TalentEngine, TalentResult, ToolDefinition} from '../types';
-import {shellErrorResult} from './common';
+import type {
+  SystemPromptContext,
+  TalentEngine,
+  TalentResult,
+  ToolDefinition,
+} from '../types';
+import {shellErrorResult, tabletFragment} from './common';
 import {runShell} from './shell';
 
 const GIB = 1024 * 1024 * 1024;
@@ -79,6 +84,10 @@ export class TabletStatusEngine implements TalentEngine {
       return shellErrorResult(this.name, e);
     }
     return {type: 'text', summary: parts.join(' · ')};
+  }
+
+  systemPromptFragment(ctx: SystemPromptContext): string | null {
+    return tabletFragment(this.name, ctx.activeTalents);
   }
 
   toToolDefinition(): ToolDefinition {

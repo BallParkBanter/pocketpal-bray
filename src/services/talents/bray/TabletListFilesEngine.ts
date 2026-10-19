@@ -1,5 +1,16 @@
-import type {TalentEngine, TalentResult, ToolDefinition} from '../types';
-import {errorResult, shellErrorResult, shQuote, truncate} from './common';
+import type {
+  SystemPromptContext,
+  TalentEngine,
+  TalentResult,
+  ToolDefinition,
+} from '../types';
+import {
+  errorResult,
+  shQuote,
+  shellErrorResult,
+  tabletFragment,
+  truncate,
+} from './common';
 import {runShell} from './shell';
 
 const DEFAULT_PATH = '/sdcard/Download';
@@ -93,6 +104,10 @@ export class TabletListFilesEngine implements TalentEngine {
     } catch (e) {
       return shellErrorResult(this.name, e);
     }
+  }
+
+  systemPromptFragment(ctx: SystemPromptContext): string | null {
+    return tabletFragment(this.name, ctx.activeTalents);
   }
 
   toToolDefinition(): ToolDefinition {

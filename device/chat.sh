@@ -140,14 +140,15 @@ prepare() {
 
   if [[ -n "$PAL" ]]; then
     tap '^Select Pal$' || fail "Select Pal button not found"; sleep 2
+    tap '^Pals$'; sleep 1   # the sheet reopens on the last tab (may be Models)
     local pal_rx
-    pal_rx="^$(python3 -I -c 'import re,sys; print(re.escape(sys.argv[1]))' "$PAL")(, |$)"
+    pal_rx="^$(python3 -I -c 'import re,sys; print(re.escape(sys.argv[1]))' "$PAL")$"   # the title Text node, not the row (its centre can sit under the input bar)
     # Close the sheet by its backdrop, never with BACK (BACK can background
     # the app, which auto-releases the model).
     # The "No Pal" row only exists while a Pal is active; absent means none is.
     # The last rows sit under the message bar (a tap there hits the input),
     # so scroll the list up first: with few Pals this is a no-op.
-    dev_adb shell input swipe 1280 1150 1280 500 500; sleep 1
+    dev_adb shell input swipe 1280 1150 1280 500 500; sleep 3   # let the fling settle before the dump
     tap "$pal_rx" || { tap '^Bottom sheet backdrop$'; [[ "$PAL" == "No Pal" ]] || fail "pal not found: $PAL"; }
     sleep 2
     # Verify: the input bar shows "Pal: <name>" while a Pal is active.

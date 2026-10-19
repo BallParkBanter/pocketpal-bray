@@ -1,6 +1,16 @@
-import type {TalentEngine, TalentResult, ToolDefinition} from '../types';
+import type {
+  SystemPromptContext,
+  TalentEngine,
+  TalentResult,
+  ToolDefinition,
+} from '../types';
 import {askApproval} from './approval';
-import {errorResult, shellErrorResult, truncate} from './common';
+import {
+  errorResult,
+  shellErrorResult,
+  tabletFragment,
+  truncate,
+} from './common';
 import {runShell} from './shell';
 
 const WORDS: Record<string, number> = {
@@ -90,6 +100,10 @@ export class TabletBrightnessEngine implements TalentEngine {
       type: 'text',
       summary: `Done: the screen brightness is now ${pct}%${before}. Auto-brightness is off.`,
     };
+  }
+
+  systemPromptFragment(ctx: SystemPromptContext): string | null {
+    return tabletFragment(this.name, ctx.activeTalents);
   }
 
   toToolDefinition(): ToolDefinition {

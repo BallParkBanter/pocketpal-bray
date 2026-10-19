@@ -105,7 +105,7 @@ def approval_dialog(xml_text, choice="deny", pkg=BRAY_PKG):
     b = bbox(target)
     if b is None:
         return None
-    title = next((n.get("text", "") for n in nodes if n.get("resource-id", "").endswith(":id/alertTitle")), "")
+    title = next((n.get("text", "") for n in nodes if re.search(r":id/alert_?[tT]itle$", n.get("resource-id", ""))), "")
     message = next((n.get("text", "") for n in nodes if n.get("resource-id", "").endswith(":id/message")), "")
     return {"title": title, "message": message, "choice": "allow" if choice == "allow" else "deny",
             "x": (b[0] + b[2]) // 2, "y": (b[1] + b[3]) // 2}
@@ -144,8 +144,10 @@ def parse(xml_text):
                 lines = [n.get("text").rstrip() for n in nodes
                          if n.get("text", "").strip() and n.get("resource-id") != "footer-timing"
                          and inside(n, b) and not any(inside(n, tb) for tb in tool_boxes)]
-                if lines:
-                    out["response"] = "\n".join(lines)
+                # Whole bubble on screen: its text nodes ARE the reply. None
+                # (only tool chips) means the model ended its turn without text;
+                # the content-desc would hand back the chip label instead.
+                out["response"] = "\n".join(lines)
     turn = None
     if footer is not None:
         turn = bubble if bubble is not None else next((p for p in root.iter() if footer in list(p)), None)

@@ -41,3 +41,23 @@ export function shellErrorResult(tool: string, e: unknown): TalentResult {
 export function shQuote(s: string): string {
   return "'" + s.replace(/'/g, "'\\''") + "'";
 }
+
+export const TABLET_FRAGMENT =
+  "You are running on Bo's tablet and can act on it with the tablet_* tools. " +
+  'Use them instead of saying you cannot. After a tablet tool returns, always ' +
+  'reply to Bo in one or two sentences saying what it found or did. If a tool ' +
+  'says "Blocked" or "Bo declined", tell Bo that and do not try another way.';
+
+/**
+ * One shared fragment for all tablet_* talents: only the first active one
+ * (alphabetically) emits it, so it appears once however many are enabled.
+ */
+export function tabletFragment(
+  name: string,
+  activeTalents: ReadonlySet<string>,
+): string | null {
+  const first = [...activeTalents]
+    .filter(t => t.startsWith('tablet_'))
+    .sort()[0];
+  return first === name ? TABLET_FRAGMENT : null;
+}

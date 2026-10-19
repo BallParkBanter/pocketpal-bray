@@ -1,5 +1,15 @@
-import type {TalentEngine, TalentResult, ToolDefinition} from '../types';
-import {errorResult, shellErrorResult, truncate} from './common';
+import type {
+  SystemPromptContext,
+  TalentEngine,
+  TalentResult,
+  ToolDefinition,
+} from '../types';
+import {
+  errorResult,
+  shellErrorResult,
+  tabletFragment,
+  truncate,
+} from './common';
 import {holdModelWhileAway, releaseHold} from './holdModel';
 import {
   LaunchableApp,
@@ -144,6 +154,10 @@ export class TabletOpenAppEngine implements TalentEngine {
     } catch (e) {
       return shellErrorResult(this.name, e);
     }
+  }
+
+  systemPromptFragment(ctx: SystemPromptContext): string | null {
+    return tabletFragment(this.name, ctx.activeTalents);
   }
 
   toToolDefinition(): ToolDefinition {
