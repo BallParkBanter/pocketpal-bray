@@ -6,6 +6,7 @@ import {ReadUrlEngine} from './ReadUrlEngine';
 import {talentRegistry} from './TalentRegistry';
 import type {SearchAccess} from './searchAccess';
 import type {ToolDefinition, SystemPromptContext} from './types';
+import {startMcpBridge} from './bray/mcp/McpBridge';
 import {searchProviderStore} from '../../store/SearchProviderStore';
 import {createSearchProvider, readWithDefaultReader} from '../search';
 
@@ -62,6 +63,7 @@ export function registerDefaultTalents(): void {
   const searchAccess = createSearchAccess();
   talentRegistry.register(new WebSearchEngine(searchAccess));
   talentRegistry.register(new ReadUrlEngine(searchAccess));
+  startMcpBridge();
   registered = true;
 }
 

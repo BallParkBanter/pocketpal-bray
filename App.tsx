@@ -51,6 +51,10 @@ import {
 } from './src/screens';
 import PalsScreen from './src/screens/PalsScreen';
 import {OnboardingStack} from './src/screens/OnboardingScreens';
+import {
+  McpServersScreen,
+  MCP_SERVERS_ROUTE,
+} from './src/services/talents/bray/mcp/McpServersScreen';
 
 // Check if app is in debug mode
 const isDebugMode = __DEV__;
@@ -180,6 +184,14 @@ const App = observer(() => {
                             options={{
                               headerStyle: styles.headerWithoutDivider,
                               title: currentL10n.screenTitles.settings,
+                            }}
+                          />
+                          <Drawer.Screen
+                            name={MCP_SERVERS_ROUTE}
+                            component={gestureHandlerRootHOC(McpServersScreen)}
+                            options={{
+                              headerStyle: styles.headerWithoutDivider,
+                              title: MCP_SERVERS_ROUTE,
                             }}
                           />
                           <Drawer.Screen
