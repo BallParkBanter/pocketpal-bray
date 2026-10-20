@@ -131,6 +131,17 @@ ensure_model() {
 
 NOT_LOADED='Model not loaded'
 
+# memory_warning — PocketPal's own "Memory Warning ... Continue loading?" dialog
+# (a model near the RAM limit, e.g. Gemma 4 E4B with mmap) pops up when the app
+# comes to the front. Tap CONTINUE and wait for the load. rc 0 if it was there.
+memory_warning() {
+  has '^Memory Warning$' && has '^(CONTINUE|Continue)$' || return 1
+  echo "chat.sh: Memory Warning dialog; tapping CONTINUE" >&2
+  tap '^(CONTINUE|Continue)$'
+  local i; for i in $(seq 1 30); do sleep 3; dump || continue; has '^Memory Warning$' || return 0; done
+  return 0
+}
+
 # prepare — chat screen, model loaded, fresh chat (built-in Bray Pal), thinking off.
 prepare() {
   # This build has no Pal UI: every new chat runs on the built-in "Bray" Pal
@@ -140,6 +151,7 @@ prepare() {
   fi
   _dev_launch; sleep 3
   dump || fail "uiautomator dump failed"
+  memory_warning && { dump || fail "uiautomator dump failed"; }
   if ! has '^chat-input$'; then          # not on the chat screen
     tap '^Open drawer$' && sleep 1 && tap '^Chat$' && sleep 2
   fi
@@ -182,6 +194,7 @@ print("\x27" + s.replace("\x27", "\x27\\\x27\x27") + "\x27")' "$PROMPT")"
     sleep 3
     dump || continue
     if answer_dialog; then prev=""; continue; fi
+    if memory_warning; then prev=""; continue; fi
     # A tool may have opened another app (tablet_open_app): PocketPal keeps
     # writing its reply behind it, so bring PocketPal back to read it. Never
     # cover Shizuku's permission dialog, which only Bo may answer.
