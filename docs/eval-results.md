@@ -112,3 +112,97 @@ Appended by `device/run-evals.sh`. Cases live in `device/evals/cases.jsonl`.
 
 > 2026-10-19 20:12–22:07 (build 1.20.1 + Pal picker, per-part Pals): 25/25 PASS, then the run was cut by a 2-hour tool timeout (5 bray-* cases not reached; brightness restored by hand).
 > 2026-10-19 22:47–23:36 (**1.20.1-bray.2**, Bray built in, every case through Bray, mcp-* skipped as opt-in): **PASS 20/21 (95 %)**, run in groups under one device lock with a battery guard. Only miss: notes-batting-cage (searched, did not read the note, vague answer).
+
+### 1.20.1-bray.3, `--only notes-` after the read_note prompt line (Gemma 4 E2B): 4/5
+
+| When | Case | Status | tok/s | TTFT ms | Tools | Response |
+|---|---|---|---|---|---|---|
+| 2026-10-19 23:45 | notes-batting-cage | FAIL | 6.39 | 76274 | search_notes,read_note | I found a note in Home Assistant that mentions an entity for the "Batting Cage ... |
+| 2026-10-19 23:49 | notes-ac-filter | PASS | 6.63 | 56012 | search_notes,read_note | The AC filter size is 18 x 20 x 1. |
+| 2026-10-19 23:52 | notes-telluride-lx | PASS | 6.7 | 74655 | search_notes,read_note | The starting price for the base LX trim of the 2025 Kia Telluride is approximat... |
+| 2026-10-19 23:55 | notes-air-return | PASS | 6.36 | 58459 | search_notes,read_note | The air return size for the master bathroom is 11.5 x 7.75. |
+| 2026-10-19 23:58 | notes-read-by-title | PASS | 6.42 | 80385 | search_notes,read_note | The S trim of the 2025 Kia Telluride is approximately $39,390. |
+
+### Model bake-off, 1.20.1-bray.3, Gemma 4 E2B Q4_0: 18/21
+
+Same build and settings for every model (n_ctx 2048, 6 threads, mmap off). Full write-up: `.superpowers/sdd/2026-10-19-pocketpal-bray/model-bakeoff.md`.
+
+| When | Case | Status | tok/s | TTFT ms | Tools | Response |
+|---|---|---|---|---|---|---|
+| 2026-10-20 00:13 | base-arithmetic | FAIL | 6.74 | 21140 | - | 411 |
+| 2026-10-20 00:15 | base-factual | PASS | 8.87 | 20812 | - | The capital of France is Paris. |
+| 2026-10-20 00:17 | base-summary | PASS | 8.75 | 22641 | - | The Mississippi River is the second-longest in North America, flowing from Lake... |
+| 2026-10-20 00:19 | base-followup | PASS | 6.66 | 22073 | - | Teal |
+| 2026-10-20 00:23 | notes-batting-cage | FAIL | 8.33 | 41688 | search_notes | I found a few notes mentioning a "batting cage plug". The most relevant note is... |
+| 2026-10-20 00:25 | notes-ac-filter | PASS | 8.49 | 47164 | search_notes,read_note | The size of the AC filter is 18 x 20 x 1. |
+| 2026-10-20 00:28 | notes-telluride-lx | PASS | 7.96 | 62625 | search_notes,read_note | The starting price for the base LX trim of the Kia Telluride is approximately $... |
+| 2026-10-20 00:30 | notes-air-return | PASS | 8.4 | 47758 | search_notes,read_note | The master bathroom air return size is 11.5 x 7.75. |
+| 2026-10-20 00:33 | notes-read-by-title | PASS | 8.04 | 65223 | search_notes,read_note | The approximate price for the S trim of the 2025 Kia Telluride is around $39,39... |
+| 2026-10-20 00:36 | tab-status-battery | PASS | 8.64 | 24944 | tablet_status | You have 100% battery. |
+| 2026-10-20 00:38 | tab-status-wifi | PASS | 9.02 | 24678 | tablet_status | The tablet is connected to the Wi-Fi network NomadicNetwork. |
+| 2026-10-20 00:40 | tab-status-storage | PASS | 9.19 | 24448 | tablet_status | The tablet has 111 GB of free storage space. |
+| 2026-10-20 00:44 | tab-bright-40 | PASS | 9.08 | 28541 | tablet_set_brightness | Done: the screen brightness is now 40%. |
+| 2026-10-20 00:46 | tab-bright-max | PASS | 9.01 | 28912 | tablet_set_brightness | The screen brightness has been turned up to 100%. |
+| 2026-10-20 00:48 | tab-open-libretube | PASS | 0.0 | - | tablet_open_app | Opened LibreTube (com.github.libretube). It is now on screen. |
+| 2026-10-20 00:51 | tab-open-typo | PASS | 8.59 | 27976 | tablet_open_app | The LibreTube app has been opened. |
+| 2026-10-20 00:53 | tab-files-downloads | PASS | 8.67 | 31989 | tablet_list_files | I found these files in your downloads folder: a PDF, a folder named "Silo/", a ... |
+| 2026-10-20 00:55 | tab-files-sdcard-models | PASS | 8.01 | 34618 | tablet_list_files | I found the following files in the /storage/6238-3662/AI-Models folder: gemma-4... |
+| 2026-10-20 00:58 | tab-shell-uptime | PASS | 9.0 | 28890 | tablet_shell | The tablet is up for 16 days, 5 hours, and 27 minutes, with a load average of 0... |
+| 2026-10-20 01:00 | tab-shell-wifi-blocked | FAIL | 8.88 | 20752 | - | I do not have a tool to directly turn off the Wi-Fi. |
+| 2026-10-20 01:02 | bray-zorbleflux | PASS | 8.47 | 44029 | search_notes,read_note | The note about "zorbleflux" is a freshness test for the offline notes sync pipe... |
+
+### Model bake-off, 1.20.1-bray.3, LFM2.5-2.6B Q4_0: 19/21
+
+Same build and settings for every model (n_ctx 2048, 6 threads, mmap off). Full write-up: `.superpowers/sdd/2026-10-19-pocketpal-bray/model-bakeoff.md`.
+
+| When | Case | Status | tok/s | TTFT ms | Tools | Response |
+|---|---|---|---|---|---|---|
+| 2026-10-20 01:06 | base-arithmetic | PASS | 9.7 | 19146 | - | Reasoning 391 |
+| 2026-10-20 01:08 | base-factual | PASS | 9.81 | 19426 | - | Reasoning The capital of France is Paris. |
+| 2026-10-20 01:10 | base-summary | FAIL | 9.15 | 20892 | search_notes,read_note | Reasoning Reasoning Reasoning 🤝 Kevin Hill Partnership Touchpoint – 09-12-2025 ... |
+| 2026-10-20 01:13 | base-followup | FAIL | 9.56 | 50228 | - | Reasoning red |
+| 2026-10-20 01:19 | notes-batting-cage | PASS | 9.22 | 18959 | search_notes,read_note | Reasoning Reasoning Reasoning Your notes show that the Batting Cage (Outdoor) u... |
+| 2026-10-20 01:22 | notes-ac-filter | PASS | 9.64 | 19050 | search_notes,read_note | Reasoning Reasoning Reasoning The AC filter size is 18 x 20 x 1. |
+| 2026-10-20 01:25 | notes-telluride-lx | PASS | 9.38 | 19528 | search_notes,read_note | Reasoning Reasoning Reasoning The starting price of the base LX trim of the 202... |
+| 2026-10-20 01:28 | notes-air-return | PASS | 9.45 | 19216 | search_notes,read_note | Reasoning Reasoning Reasoning The master bathroom air return size is 11.5 x 7.7... |
+| 2026-10-20 01:31 | notes-read-by-title | PASS | 9.46 | 19462 | search_notes,read_note | Reasoning Reasoning Reasoning The S trim level of the 2025 Kia Telluride is lis... |
+| 2026-10-20 01:34 | tab-status-battery | PASS | 9.77 | 19033 | tablet_status | Reasoning Reasoning Your battery is currently at 100% (full). |
+| 2026-10-20 01:36 | tab-status-wifi | PASS | 9.84 | 18656 | tablet_status | Reasoning Reasoning The tablet is connected to the NomadicNetwork Wi-Fi. |
+| 2026-10-20 01:38 | tab-status-storage | PASS | 9.86 | 19110 | tablet_status | Reasoning Reasoning There are 111 GB of free storage space remaining on this ta... |
+| 2026-10-20 01:40 | tab-bright-40 | PASS | 10.01 | 18773 | tablet_set_brightness | Reasoning Reasoning Done! Your screen brightness has been set to 40%. |
+| 2026-10-20 01:42 | tab-bright-max | PASS | 10.16 | 18838 | tablet_set_brightness | Reasoning Reasoning The screen brightness is now set to 100%. |
+| 2026-10-20 01:45 | tab-open-libretube | PASS | 9.88 | 18316 | tablet_open_app | Reasoning Reasoning LibreTube has been opened on the tablet. |
+| 2026-10-20 01:47 | tab-open-typo | PASS | 10.04 | 18841 | tablet_open_app | Reasoning Reasoning The LibreTube app has been successfully opened on your tabl... |
+| 2026-10-20 01:49 | tab-files-downloads | PASS | 9.71 | 19037 | tablet_list_files | Reasoning Reasoning Your downloads folder contains the following items (newest ... |
+| 2026-10-20 01:52 | tab-files-sdcard-models | PASS | 9.61 | 19320 | tablet_list_files | Reasoning Reasoning The /storage/6238-3662/AI-Models directory contains the fol... |
+| 2026-10-20 01:55 | tab-shell-uptime | PASS | 9.99 | 18876 | tablet_shell | Reasoning Reasoning The system has been up for 16 days, 6 hours, 24 minutes. Lo... |
+| 2026-10-20 01:57 | tab-shell-wifi-blocked | PASS | 9.22 | 18894 | tablet_status,tablet_shell,tablet_shell | Reasoning Reasoning Reasoning Reasoning I'm unable to turn off the wifi because... |
+| 2026-10-20 02:01 | bray-zorbleflux | PASS | 9.36 | 19029 | search_notes,read_note | Reasoning Reasoning Reasoning The note about "zorbleflux" is part of the Pocket... |
+
+### Model bake-off, 1.20.1-bray.3, Qwen3.5-2B Q4_0: 16/21
+
+Same build and settings for every model (n_ctx 2048, 6 threads, mmap off). Full write-up: `.superpowers/sdd/2026-10-19-pocketpal-bray/model-bakeoff.md`.
+
+| When | Case | Status | tok/s | TTFT ms | Tools | Response |
+|---|---|---|---|---|---|---|
+| 2026-10-20 02:06 | base-arithmetic | FAIL | 0.0 | 18727 | - | 0 |
+| 2026-10-20 02:08 | base-factual | FAIL | 11.18 | 46125 | tablet_open_app,tablet_open_app,tablet_open_app,tablet_open_app,tablet_open_app | The information gathered was insufficient to answer your question, as the table... |
+| 2026-10-20 02:10 | base-summary | FAIL | 10.39 | 19647 | - | That's a concise summary! |
+| 2026-10-20 02:12 | base-followup | FAIL | 10.92 | 91259 | tablet_open_app,tablet_set_brightness,tablet_open_app,search_notes,read_note | I found your favorite color is Teal in the notes. |
+| 2026-10-20 02:17 | notes-batting-cage | PASS | 10.83 | 30083 | search_notes | Bo's notes mention that the batting cage plug is an "Outdoor Double Plug" with ... |
+| 2026-10-20 02:19 | notes-ac-filter | PASS | 11.14 | 30467 | search_notes | The AC filter size is 18 x 20 x 1. |
+| 2026-10-20 02:21 | notes-telluride-lx | PASS | 10.96 | 24805 | search_notes | The base LX trim of the Kia Telluride starts at approximately $36,390. |
+| 2026-10-20 02:24 | notes-air-return | PASS | 10.49 | 30757 | search_notes,read_note | I found a note with the details: "Air return (Bo Notes)" with dimensions 11.5 x... |
+| 2026-10-20 02:26 | notes-read-by-title | PASS | 10.42 | 47804 | search_notes,read_note | The S trim starts at approximately $39,390. |
+| 2026-10-20 02:28 | tab-status-battery | PASS | 10.59 | 22133 | tablet_status | Your tablet has 100% battery. |
+| 2026-10-20 02:30 | tab-status-wifi | PASS | 10.76 | 22058 | tablet_status | The tablet is connected to "NomadicNetwork". |
+| 2026-10-20 02:32 | tab-status-storage | PASS | 10.89 | 21839 | tablet_status | You have 111 GB of free storage space on this tablet. |
+| 2026-10-20 02:34 | tab-bright-40 | PASS | 11.3 | 27135 | tablet_set_brightness | The screen brightness is now set to 40%. Auto-brightness is off. |
+| 2026-10-20 02:37 | tab-bright-max | PASS | 11.09 | 27361 | tablet_set_brightness | The screen brightness is now set to 100%. |
+| 2026-10-20 02:39 | tab-open-libretube | PASS | 10.54 | 27448 | tablet_open_app | LibreTube is now open. |
+| 2026-10-20 02:41 | tab-open-typo | PASS | 10.47 | 28736 | tablet_open_app | Open LibreTube (com.github.libretube). |
+| 2026-10-20 02:43 | tab-files-downloads | PASS | 10.94 | 26305 | tablet_list_files | I found a few files in your downloads folder, including a PDF from October 15th... |
+| 2026-10-20 02:45 | tab-files-sdcard-models | PASS | 10.73 | 27618 | tablet_list_files | The files in /storage/6238-3662/AI-Models are: 1. gemma-4-E4B-it-Q4_0.gguf (4.3... |
+| 2026-10-20 02:47 | tab-shell-uptime | PASS | 11.28 | 28288 | tablet_shell | The system has been up for 16 days and 7 minutes. |
+| 2026-10-20 02:50 | tab-shell-wifi-blocked | FAIL | 11.15 | 37461 | tablet_status,tablet_set_brightness,tablet_set_brightness | Bo declined to turn off Wi-Fi, so I'll let it be at full speed. |
+| 2026-10-20 02:52 | bray-zorbleflux | PASS | 10.79 | 26552 | search_notes | I found two notes containing "zorbleflux". The first one, "PocketPal Bray — not... |
