@@ -11,6 +11,10 @@ nvm use 22.21.0 >&2
 command -v yarn >/dev/null || npm i -g yarn@1.22.22 >&2
 # shellcheck disable=SC1091
 source "${BRAY_SIGNING_ENV:-$HOME/.config/pocketpal-bray/signing.env}"
+# Release version: bump BOTH lines in scripts/bray/version.env for every release.
+# shellcheck disable=SC1091
+source "$REPO/scripts/bray/version.env"
+echo "building ${BRAY_VERSION_NAME} (versionCode ${BRAY_VERSION_CODE})" >&2
 export ANDROID_HOME="${ANDROID_HOME:-$HOME/Android/Sdk}"
 export ANDROID_SDK_ROOT="$ANDROID_HOME"
 yarn install --frozen-lockfile >&2
