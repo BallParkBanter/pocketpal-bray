@@ -1,6 +1,8 @@
 import {
+  BRAY_PROMPT_KEY,
   BRAY_SEEDED_KEY,
   BRAY_SYSTEM_PROMPT,
+  BRAY_SYSTEM_PROMPT_V1,
   BRAY_TALENTS,
   seedBrayPal,
   type NewPal,
@@ -39,7 +41,7 @@ describe('seedBrayPal', () => {
     expect(pal.name).toBe('Bray');
     expect(pal.systemPrompt).toBe(BRAY_SYSTEM_PROMPT);
     expect(pal.systemPrompt).toBe(
-      "You are Bo's offline tablet assistant. Use a tool when the question is about this tablet or Bo's notes; otherwise answer directly. Keep answers short.",
+      "You are Bo's offline tablet assistant. Use a tool when the question is about this tablet or Bo's notes; otherwise answer directly. Keep answers short. For questions about Bo's notes, call search_notes, then call read_note on the best hit before answering.",
     );
     expect(pal.pact?.talents.map(t => t.name)).toEqual([...BRAY_TALENTS]);
     expect(pal.pact?.talents.map(t => t.name).sort()).toEqual(
@@ -111,5 +113,41 @@ describe('untinting an existing Bray Pal', () => {
     const {deps, createPal} = makeDeps();
     await seedBrayPal(deps);
     expect(createPal.mock.calls[0][0].color).toBeUndefined();
+  });
+});
+
+describe('upgrading the Bray prompt', () => {
+  it('replaces an unedited v1 prompt once', async () => {
+    const v1 = {
+      id: 'b',
+      name: 'Bray',
+      source: 'local',
+      systemPrompt: BRAY_SYSTEM_PROMPT_V1,
+    } as unknown as Pal;
+    const {deps, store} = makeDeps([v1], 'true');
+    const updatePal = jest.fn(async () => {});
+    deps.updatePal = updatePal;
+    await seedBrayPal(deps);
+    await seedBrayPal(deps);
+    expect(updatePal).toHaveBeenCalledTimes(1);
+    expect(updatePal).toHaveBeenCalledWith('b', {
+      systemPrompt: BRAY_SYSTEM_PROMPT,
+      originalSystemPrompt: BRAY_SYSTEM_PROMPT,
+    });
+    expect(store.get(BRAY_PROMPT_KEY)).toBe('true');
+  });
+
+  it('leaves a prompt Bo edited alone', async () => {
+    const edited = {
+      id: 'b',
+      name: 'Bray',
+      source: 'local',
+      systemPrompt: 'my own prompt',
+    } as unknown as Pal;
+    const {deps} = makeDeps([edited], 'true');
+    const updatePal = jest.fn(async () => {});
+    deps.updatePal = updatePal;
+    await seedBrayPal(deps);
+    expect(updatePal).not.toHaveBeenCalled();
   });
 });

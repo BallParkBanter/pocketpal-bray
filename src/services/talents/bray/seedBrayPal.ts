@@ -7,8 +7,16 @@ import type {Pal} from '../../../types/pal';
 export const BRAY_SEEDED_KEY = 'bray.seeded.v1';
 export const BRAY_PAL_NAME = 'Bray';
 
-export const BRAY_SYSTEM_PROMPT =
+/** The v1 prompt, seeded by builds up to 1.20.1-bray.2. */
+export const BRAY_SYSTEM_PROMPT_V1 =
   "You are Bo's offline tablet assistant. Use a tool when the question is about this tablet or Bo's notes; otherwise answer directly. Keep answers short.";
+
+export const BRAY_SYSTEM_PROMPT =
+  BRAY_SYSTEM_PROMPT_V1 +
+  " For questions about Bo's notes, call search_notes, then call read_note on the best hit before answering.";
+
+/** One-time upgrade of an unedited v1 prompt to the current one. */
+export const BRAY_PROMPT_KEY = 'bray.prompt.v2';
 
 export const BRAY_TALENTS = [
   'tablet_status',
@@ -33,7 +41,12 @@ export interface SeedDeps {
   pals: () => Pal[];
   createPal: (pal: NewPal) => Promise<unknown>;
   /** Clears fields on an existing Pal (color: null removes the tint). */
-  updatePal?: (id: string, updates: {color: null}) => Promise<unknown>;
+  updatePal?: (
+    id: string,
+    updates:
+      | {color: null}
+      | {systemPrompt: string; originalSystemPrompt: string},
+  ) => Promise<unknown>;
 }
 
 export function brayPalData(): NewPal {
@@ -63,7 +76,32 @@ export function brayPalData(): NewPal {
 export async function seedBrayPal(deps: SeedDeps): Promise<boolean> {
   const created = await seedOnce(deps);
   await untintOnce(deps);
+  await upgradePromptOnce(deps);
   return created;
+}
+
+/** Only touches a Bray Pal whose prompt is still exactly the v1 text. */
+async function upgradePromptOnce(deps: SeedDeps): Promise<void> {
+  try {
+    if (
+      !deps.updatePal ||
+      (await deps.storage.getItem(BRAY_PROMPT_KEY)) === 'true'
+    ) {
+      return;
+    }
+    const bray = deps
+      .pals()
+      .find(p => p.name === BRAY_PAL_NAME && p.source === 'local');
+    if (bray && bray.systemPrompt === BRAY_SYSTEM_PROMPT_V1) {
+      await deps.updatePal(bray.id, {
+        systemPrompt: BRAY_SYSTEM_PROMPT,
+        originalSystemPrompt: BRAY_SYSTEM_PROMPT,
+      });
+    }
+    await deps.storage.setItem(BRAY_PROMPT_KEY, 'true');
+  } catch (error) {
+    console.error('Error upgrading Bray prompt:', error);
+  }
 }
 
 async function untintOnce(deps: SeedDeps): Promise<void> {
