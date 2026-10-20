@@ -132,11 +132,17 @@ ensure_model() {
 NOT_LOADED='Model not loaded'
 
 # memory_warning — PocketPal's own "Memory Warning ... Continue loading?" dialog
-# (a model near the RAM limit, e.g. Gemma 4 E4B with mmap) pops up when the app
-# comes to the front. Tap CONTINUE and wait for the load. rc 0 if it was there.
+# (a model near the RAM limit, e.g. Gemma 4 E4B) pops up when the app comes to
+# the front. Default: fail. CONTINUE can make the low-memory killer take
+# Tailscale/Wi-Fi with it and cut the tablet off (happened 2026-10-20), so it is
+# only tapped when BRAY_ALLOW_MEMORY_WARNING=1 is set for a deliberate test.
 memory_warning() {
   has '^Memory Warning$' && has '^(CONTINUE|Continue)$' || return 1
-  echo "chat.sh: Memory Warning dialog; tapping CONTINUE" >&2
+  [[ "${BRAY_ALLOW_MEMORY_WARNING:-0}" == 1 ]] || {
+    tap '^(CANCEL|Cancel)$'
+    fail "Memory Warning dialog: model too big for free RAM (set BRAY_ALLOW_MEMORY_WARNING=1 to continue anyway)"
+  }
+  echo "chat.sh: Memory Warning dialog; BRAY_ALLOW_MEMORY_WARNING=1, tapping CONTINUE" >&2
   tap '^(CONTINUE|Continue)$'
   local i; for i in $(seq 1 30); do sleep 3; dump || continue; has '^Memory Warning$' || return 0; done
   return 0
