@@ -8,8 +8,8 @@ Tailscale relay `localhost:5599`). Never hard-code the serial.
 | Script | What it does |
 |---|---|
 | `install.sh <apk>` | `adb install -r`, then checks the package is `com.pocketpalai.bray` with `primaryCpuAbi=arm64-v8a`. Prints `installed com.pocketpalai.bray arm64-v8a`. |
-| `chat.sh "<prompt>" [--pal "<name>"] [--timeout 180] [--keep-thinking] [--continue] [--approve allow\|deny]` | New chat, optional Pal, thinking OFF, types the prompt, waits for the reply. `--continue` skips New Chat/Pal/thinking and sends into the current conversation (multi-turn). `--approve` says what to tap when Bray's Allow/Deny approval dialog appears (default **deny**). Prints one JSON line (below). Exit 0 if `ok`. |
-| `run-evals.sh [--only <id-prefix>] [--offline]` | Runs `evals/cases.jsonl` through `chat.sh` under one device lock, appends a row per case to `docs/eval-results.md`, prints `PASS n/m` (exit 1 below 80 %). Optional `"setup"` in a case is sent first as a new chat, then `prompt` with `--continue`; only the last reply is graded. `needs_approval` cases run with `--approve allow` and FAIL unless a dialog was allowed; any other case FAILs if a dialog popped up (it was denied). Brightness is snapshotted before the run and restored after. |
+| `chat.sh "<prompt>" [--pal "<name>"] [--timeout 180] [--keep-thinking] [--continue] [--approve allow\|deny]` | New chat (always on the built-in **Bray** Pal: this build has no Pal picker), thinking OFF, types the prompt, waits for the reply. `--pal "Bray"` is a no-op kept for old callers; any other `--pal` is an error. `--continue` skips New Chat/thinking and sends into the current conversation (multi-turn). `--approve` says what to tap when Bray's Allow/Deny approval dialog appears (default **deny**). Prints one JSON line (below). Exit 0 if `ok`. |
+| `run-evals.sh [--only <id-prefix>] [--offline]` | Runs `evals/cases.jsonl` through `chat.sh` under one device lock (cases with a `"skip"` reason are listed as `SKIP (not run)` and not counted: the two `mcp-*` cases, because MCP is opt-in and the Bray Pal has no `mcp_*` talents), appends a row per case to `docs/eval-results.md`, prints `PASS n/m` (exit 1 below 80 %). Optional `"setup"` in a case is sent first as a new chat, then `prompt` with `--continue`; only the last reply is graded. `needs_approval` cases run with `--approve allow` and FAIL unless a dialog was allowed; any other case FAILs if a dialog popped up (it was denied). Brightness is snapshotted before the run and restored after. |
 | `eval_grade.py` | Grading and table rows for `run-evals.sh`. |
 | `shot.sh "<caption>"` | Screenshot, posted to Mattermost `galaxy-tab-s7` (`BRAY_MM_CHANNEL` overrides). Prints the PNG path. |
 | `lib.sh` | Shared helpers (source it). |
@@ -37,9 +37,9 @@ Tailscale relay `localhost:5599`). Never hard-code the serial.
   own package whose buttons read exactly Allow / Deny are answered — never Shizuku's permission
   dialog ("Allow all the time"), which must be answered by hand once.
 - On failure `ok` is `false` and an `error` field says why (`tablet locked or asleep — Bo must unlock`,
-  `pal not found: X`, `timed out …`, `model not loaded …`, `device lock busy …`). The JSON line is
+  `no Pal picker in this build …`, `timed out …`, `model not loaded …`, `device lock busy …`). The JSON line is
   printed in every case, including a lock timeout (exit 75).
-- `--pal "No Pal"` clears the active Pal (the row only exists while a Pal is active; if absent, no Pal is active and chat.sh carries on). Without `--pal` the current Pal stays.
+- There is no "No Pal" any more: every case runs through Bray, so the `base-*` cases check that Bray still answers plain questions directly.
 
 ## lib.sh functions
 

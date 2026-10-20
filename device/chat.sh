@@ -2,10 +2,12 @@
 # device/chat.sh "<prompt>" [--pal "<name>"] [--timeout 180] [--keep-thinking] [--continue]
 #                [--approve allow|deny] [--approve-match <regex>]
 #
-# Drives PocketPal Bray on the tablet: new chat, optional Pal, thinking OFF,
-# types the prompt, sends, waits for the reply's metrics footer, screenshots.
-# --continue: skip New Chat / Pal / thinking; send into the current conversation
-#   (multi-turn). --pal is ignored with --continue.
+# Drives PocketPal Bray on the tablet: new chat (always on the built-in "Bray"
+# Pal; this build has no Pal picker), thinking OFF, types the prompt, sends,
+# waits for the reply's metrics footer, screenshots.
+# --pal "Bray" is a no-op kept for old callers; any other --pal is an error.
+# --continue: skip New Chat / thinking; send into the current conversation
+#   (multi-turn).
 # --approve: what to tap when a Bray Allow/Deny approval dialog pops up while
 #   waiting (default deny — the harness never allows anything unless asked).
 #   --approve allow REQUIRES --approve-match: Allow is tapped only when the
@@ -78,20 +80,6 @@ for n in ET.parse(sys.argv[1]).getroot().iter("node"):
 sys.exit(1)' "$XML" "$1"; }
 tap() { _dev_tap_text "$@" >/dev/null; }
 fail() { emit 0 "$1"; exit 1; }
-# close_sheet — tap the backdrop above the bottom sheet (never BACK, never the
-# backdrop's centre, which is inside the sheet). Uses the current $XML dump.
-close_sheet() {
-  local a x y
-  read -r a x y < <(python3 -I "$HERE/pal_rows.py" "$XML" --close)
-  dev_adb shell input tap "$x" "$y" >/dev/null
-}
-# palfail <reason> — keep the dump and a screenshot of a failed Pal pick, then fail.
-palfail() {
-  local base; base="$BRAY_SHOT_DIR/palfail-$(date +%Y%m%d-%H%M%S)"
-  mkdir -p "$BRAY_SHOT_DIR"; cp "$XML" "$base.xml" 2>/dev/null
-  SHOT="$(_dev_shot "$base.png" 2>/dev/null)"
-  fail "$1"
-}
 
 # model_state — from the dump: "chat-ok", "chat-notloaded", or for the Models
 # screen the button on the $BRAY_MODEL_RX card: "card-load x y" / "card-offload".
@@ -143,8 +131,13 @@ ensure_model() {
 
 NOT_LOADED='Model not loaded'
 
-# prepare — chat screen, model loaded, fresh chat, Pal, thinking off.
+# prepare — chat screen, model loaded, fresh chat (built-in Bray Pal), thinking off.
 prepare() {
+  # This build has no Pal UI: every new chat runs on the built-in "Bray" Pal
+  # (src/services/talents/bray/brayUi.ts). --pal "Bray" is accepted as a no-op.
+  if [[ -n "$PAL" && "$PAL" != "Bray" ]]; then
+    fail "no Pal picker in this build; only --pal \"Bray\" (a no-op) is accepted, got: $PAL"
+  fi
   _dev_launch; sleep 3
   dump || fail "uiautomator dump failed"
   if ! has '^chat-input$'; then          # not on the chat screen
@@ -159,65 +152,6 @@ prepare() {
 
   tap 'id:^reset-button$' || fail "new-chat (reset) button not found"; sleep 1
 
-  if [[ -n "$PAL" ]]; then
-    tap '^Select Pal$' || fail "Select Pal button not found"; sleep 2
-    tap '^Pals$'; sleep 1   # the sheet reopens on the last tab (may be Models)
-    local pal_rx
-    pal_rx="^$(python3 -I -c 'import re,sys; print(re.escape(sys.argv[1]))' "$PAL")$"   # the title Text node, not the row (its centre can sit under the input bar)
-    # Close the sheet by its backdrop, never with BACK (BACK can background
-    # the app, which auto-releases the model).
-    # The list shows ~4 rows and its lower part sits behind the message bar, so
-    # pal_rows.py only says "tap" when the title is fully inside the visible window;
-    # otherwise it says which way to scroll. Small slow swipes, re-dumped each time.
-    # The "No Pal" row only exists while a Pal is active; absent means none is.
-    local step act x1 y1 x2 y2 dir=fwd misses=0 last_tap=""
-    [[ "$PAL" == "No Pal" ]] && dir=back   # No Pal is the first row
-    for step in $(seq 1 16); do
-      dump || fail "uiautomator dump failed"
-      if [[ "$PAL" == "No Pal" ]] && ! has '^Pal: '; then   # none active already
-        close_sheet; break
-      fi
-      if ! has '^Bottom sheet backdrop$'; then   # the sheet closed (stray tap): reopen it
-        last_tap=""
-        tap '^Select Pal$' || fail "Select Pal button not found"; sleep 2
-        tap '^Pals$'; sleep 2; continue
-      fi
-      read -r act x1 y1 x2 y2 < <(python3 -I "$HERE/pal_rows.py" "$XML" "$pal_rx")
-      case "$act" in
-        tap)
-          # The sheet may still be sliding up or the list still flinging: only tap
-          # once two dumps in a row agree on where the row is.
-          if [[ "$x1 $y1" == "${last_tap:-}" ]]; then
-            dev_adb shell input tap "$x1" "$y1" >/dev/null; break
-          fi
-          last_tap="$x1 $y1"; sleep 1; continue ;;
-        swipe) last_tap=""; dev_adb shell input swipe "$x1" "$y1" "$x2" "$y2" 800 >/dev/null ;;
-        missing)
-          last_tap=""; misses=$((misses + 1))
-          (( misses == 5 )) && { [[ $dir == fwd ]] && dir=back || dir=fwd; }
-          if (( misses > 9 )); then
-            close_sheet
-            [[ "$PAL" == "No Pal" ]] || palfail "pal not found: $PAL"
-            break
-          fi
-          if [[ $dir == fwd ]]; then
-            dev_adb shell input swipe "$x1" "$y1" "$x2" "$y2" 800 >/dev/null
-          else
-            dev_adb shell input swipe "$x2" "$y2" "$x1" "$y1" 800 >/dev/null
-          fi ;;
-        *) fail "pal_rows.py failed" ;;
-      esac
-      sleep 2
-    done
-    sleep 2
-    # Verify: the input bar shows "Pal: <name>" while a Pal is active.
-    dump || fail "uiautomator dump failed"
-    if [[ "$PAL" == "No Pal" ]]; then
-      ! has '^Pal: ' || palfail "pal still active after choosing No Pal"
-    else
-      has "^Pal: $(python3 -I -c 'import re,sys; print(re.escape(sys.argv[1]))' "$PAL")\$" || palfail "pal not selected: $PAL"
-    fi
-  fi
 
   dump || fail "uiautomator dump failed"
   if [[ $KEEP_THINKING == 0 ]] && has '^Disable thinking mode$'; then

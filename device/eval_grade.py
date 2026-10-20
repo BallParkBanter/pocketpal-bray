@@ -2,6 +2,8 @@
 
 CLI (used by run-evals.sh):
   eval_grade.py select <cases.jsonl> [--only PREFIX] [--offline]   -> case JSON lines
+  eval_grade.py skipped <cases.jsonl> [--only PREFIX] [--offline]  -> "id: reason" per skipped case
+A case with a "skip" reason is never run (e.g. MCP cases: MCP is opt-in).
   eval_grade.py grade <case-json> <result-json-line>                -> {"status","reason"}
   eval_grade.py row <stamp> <case-json> <status> <result-json-line> -> markdown table row
 """
@@ -12,9 +14,12 @@ import sys
 PASS, FAIL, SKIP = "PASS", "FAIL", "SKIP"
 
 
-def select(cases, only=None, offline=False):
+def select(cases, only=None, offline=False, skipped=False):
+    """Cases to run. skipped=True instead returns the ones held back by "skip"."""
     out = []
     for c in cases:
+        if bool(c.get("skip")) != skipped:
+            continue
         if only and not c["id"].startswith(only):
             continue
         if offline and not c.get("offline"):
@@ -88,7 +93,7 @@ def _load_result(line):
 
 def main(argv):
     cmd = argv[1]
-    if cmd == "select":
+    if cmd in ("select", "skipped"):
         only, offline = None, False
         args = argv[3:]
         while args:
@@ -99,8 +104,8 @@ def main(argv):
                 offline = True
         with open(argv[2], encoding="utf-8") as f:
             cases = [json.loads(l) for l in f if l.strip()]
-        for c in select(cases, only, offline):
-            print(json.dumps(c))
+        for c in select(cases, only, offline, skipped=(cmd == "skipped")):
+            print(json.dumps(c) if cmd == "select" else "%s: %s" % (c["id"], c["skip"]))
     elif cmd == "grade":
         st, why = grade(json.loads(argv[2]), _load_result(argv[3]))
         print(json.dumps({"status": st, "reason": why}))

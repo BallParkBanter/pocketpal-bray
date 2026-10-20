@@ -10,7 +10,8 @@
 # run with the default --approve deny. SKIP (not counted in m) is no longer produced.
 #
 # cases.jsonl line: {"id","prompt","pal","expect_tool","expect_regex","offline",
-#   "needs_approval", "setup"?}. With "setup", that text is sent first as a normal
+#   "needs_approval", "setup"?, "skip"?}. A case with "skip" (a reason) is not run
+#   and not counted; it is listed as "SKIP (not run)". With "setup", that text is sent first as a normal
 # new chat, then "prompt" goes in with --continue; only the last reply is graded.
 # Holds the device lock across the whole run (chat.sh re-enters it).
 set -uo pipefail
@@ -99,6 +100,7 @@ run_cases() {
     case "$status" in PASS) pass=$((pass+1)) ;; FAIL) fail=$((fail+1)) ;; *) skip=$((skip+1)) ;; esac
   done < <(python3 -I "$HERE/eval_grade.py" select "$CASES" "${ONLY[@]}" "${OFFLINE[@]}")
   local m=$((pass+fail))
+  python3 -I "$HERE/eval_grade.py" skipped "$CASES" "${ONLY[@]}" "${OFFLINE[@]}" | sed 's/^/SKIP (not run) /' >&2
   echo "PASS $pass/$m"
   (( skip )) && echo "($skip skipped)" >&2
   (( m == 0 )) && return 0

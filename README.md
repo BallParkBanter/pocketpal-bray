@@ -37,8 +37,8 @@ Chat with language models, give them a voice, and let them use tools — all on-
 >   refuses commands that could cut the network or reboot.
 > - **Offline notes**: `search_notes` and `read_note` over a copy of my Joplin notes, pushed to the tablet every 6 h by
 >   `scripts/bray/push-notes.sh` (systemd user timer, sensitive notes excluded).
-> - **MCP client** (opt-in): add Streamable-HTTP MCP servers in settings; each tool becomes an `mcp_<server>_<tool>` talent.
-> - A **"Bray" Pal**, seeded on first launch, with the tablet and notes tools.
+> - **MCP client** (opt-in, off the default path): add Streamable-HTTP MCP servers in settings; each tool becomes an `mcp_<server>_<tool>` talent. Bray does not use them; to use them, turn the Pal UI back on (below) and make a Pal with those talents.
+> - **Bray is built in.** Every chat runs as "Bray" (a short system prompt plus the tablet and notes tools) automatically. There is no Pal picker and no Pals screen (`BRAY_HIDE_PAL_UI` in `src/services/talents/bray/brayUi.ts` brings upstream's Pal UI back).
 > - An on-device eval harness in `device/` (`device/run-evals.sh`).
 >
 > Releases: [GitHub releases](https://github.com/BallParkBanter/pocketpal-bray/releases) (APK `app-prod-release.apk`, track with Obtainium).

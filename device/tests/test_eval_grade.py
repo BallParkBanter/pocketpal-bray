@@ -104,5 +104,12 @@ class Rows(unittest.TestCase):
         self.assertEqual([c["id"] for c in g.select(cs, offline=True)], ["base-a", "x-1"])
 
 
+class Skip(unittest.TestCase):
+    def test_skip_cases_are_held_back(self):
+        cases = [{"id": "a", "offline": True}, {"id": "mcp-b", "offline": False, "skip": "opt-in"}]
+        self.assertEqual([c["id"] for c in g.select(cases)], ["a"])
+        self.assertEqual([c["id"] for c in g.select(cases, skipped=True)], ["mcp-b"])
+
+
 if __name__ == "__main__":
     unittest.main()
