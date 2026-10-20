@@ -1,5 +1,8 @@
 import {AppState, AppStateStatus, Platform, Alert} from 'react-native';
-import {autoLoadLastUsedModel} from '../services/talents/bray/autoLoadModel';
+import {
+  autoLoadLastUsedModel,
+  runGuardedStartupLoad,
+} from '../services/talents/bray/autoLoadModel';
 import DeviceInfo from 'react-native-device-info';
 
 import {v4 as uuidv4} from 'uuid';
@@ -849,8 +852,19 @@ class ModelStore {
 
     // Check if we need to reload an auto-released model (for app restarts).
     // Bray fork: then, if still nothing is loaded, load the last-used model.
-    this.checkAndReloadAutoReleasedModel().then(() =>
-      autoLoadLastUsedModel(this),
+    // Guarded so a model that gets the app killed while loading is not
+    // reloaded on every launch (crash loop).
+    runGuardedStartupLoad(
+      {
+        storage: AsyncStorage,
+        // 'unknown' early in a cold start counts as foreground.
+        isForeground: () => AppState.currentState !== 'background',
+        onCrashSkip: () => this.clearAutoReleaseFlags(),
+      },
+      () =>
+        this.checkAndReloadAutoReleasedModel().then(() =>
+          autoLoadLastUsedModel(this),
+        ),
     );
   };
 
