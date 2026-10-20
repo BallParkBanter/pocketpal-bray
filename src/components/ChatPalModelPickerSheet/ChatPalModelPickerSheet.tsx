@@ -1,4 +1,5 @@
 import React, {useRef, useContext, useEffect} from 'react';
+import {BRAY_HIDE_PAL_UI} from '../../services/talents/bray/brayUi';
 import {Alert, Dimensions, View, Pressable, Keyboard} from 'react-native';
 import {observer} from 'mobx-react';
 import {Text} from 'react-native-paper';
@@ -83,16 +84,18 @@ export const ChatPalModelPickerSheet = observer(
     const flatListRef = useRef<BottomSheetFlatListMethods>(null);
 
     const TABS = React.useMemo(
-      () => [
-        {
-          id: 'pals' as Tab,
-          label: l10n.components.chatPalModelPickerSheet.palsTab,
-        },
-        {
-          id: 'models' as Tab,
-          label: l10n.components.chatPalModelPickerSheet.modelsTab,
-        },
-      ],
+      () =>
+        [
+          {
+            id: 'pals' as Tab,
+            label: l10n.components.chatPalModelPickerSheet.palsTab,
+          },
+          {
+            id: 'models' as Tab,
+            label: l10n.components.chatPalModelPickerSheet.modelsTab,
+          },
+          // Bray fork: no Pals tab (Bray is always on).
+        ].filter(t => !(BRAY_HIDE_PAL_UI && t.id === 'pals')),
       [
         l10n.components.chatPalModelPickerSheet.palsTab,
         l10n.components.chatPalModelPickerSheet.modelsTab,

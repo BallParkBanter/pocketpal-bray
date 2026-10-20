@@ -117,6 +117,15 @@ const defaultProps = {
   keyboardHeight: 0,
 };
 
+// Bray fork hides the Pals tab; these upstream tests cover the upstream UI,
+// so they run with the flag off. The Bray case flips it on.
+let mockHidePalUi = false;
+jest.mock('../../../services/talents/bray/brayUi', () => ({
+  get BRAY_HIDE_PAL_UI() {
+    return mockHidePalUi;
+  },
+}));
+
 describe('ChatPalModelPickerSheet', () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -210,6 +219,27 @@ describe('ChatPalModelPickerSheet', () => {
     expect(
       getByText(l10n.en.components.chatPalModelPickerSheet.palsTab),
     ).toBeTruthy();
+  });
+
+  it('Bray fork: hides the pals tab when BRAY_HIDE_PAL_UI is on', () => {
+    mockHidePalUi = true;
+    try {
+      const {getByText, queryByText} = render(
+        <UserContext.Provider value={user}>
+          <L10nContext.Provider value={l10n.en}>
+            <ChatPalModelPickerSheet {...defaultProps} />
+          </L10nContext.Provider>
+        </UserContext.Provider>,
+      );
+      expect(
+        getByText(l10n.en.components.chatPalModelPickerSheet.modelsTab),
+      ).toBeTruthy();
+      expect(
+        queryByText(l10n.en.components.chatPalModelPickerSheet.palsTab),
+      ).toBeNull();
+    } finally {
+      mockHidePalUi = false;
+    }
   });
 
   it('switches tabs when tab is pressed', () => {

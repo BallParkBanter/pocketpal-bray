@@ -1,4 +1,5 @@
 import {AppState, AppStateStatus, Platform, Alert} from 'react-native';
+import {autoLoadLastUsedModel} from '../services/talents/bray/autoLoadModel';
 import DeviceInfo from 'react-native-device-info';
 
 import {v4 as uuidv4} from 'uuid';
@@ -846,8 +847,11 @@ class ModelStore {
     // Load missing GGUF metadata for downloaded models (background, non-blocking)
     this.loadMissingGGUFMetadata();
 
-    // Check if we need to reload an auto-released model (for app restarts)
-    this.checkAndReloadAutoReleasedModel();
+    // Check if we need to reload an auto-released model (for app restarts).
+    // Bray fork: then, if still nothing is loaded, load the last-used model.
+    this.checkAndReloadAutoReleasedModel().then(() =>
+      autoLoadLastUsedModel(this),
+    );
   };
 
   // Synthesize the minimal {hfModel, modelFile} pair the unchanged hfAsModel
