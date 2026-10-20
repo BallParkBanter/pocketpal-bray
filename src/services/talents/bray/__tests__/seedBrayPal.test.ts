@@ -88,3 +88,28 @@ describe('seedBrayPal', () => {
     spy.mockRestore();
   });
 });
+
+describe('untinting an existing Bray Pal', () => {
+  it('clears the v1 colour once', async () => {
+    const tinted = {
+      id: 'b',
+      name: 'Bray',
+      source: 'local',
+      color: ['#13A1EE', '#FAFAFA'],
+    } as unknown as Pal;
+    const {deps, store} = makeDeps([tinted], 'true');
+    const updatePal = jest.fn(async () => {});
+    deps.updatePal = updatePal;
+    await seedBrayPal(deps);
+    await seedBrayPal(deps);
+    expect(updatePal).toHaveBeenCalledTimes(1);
+    expect(updatePal).toHaveBeenCalledWith('b', {color: null});
+    expect(store.get('bray.untinted.v1')).toBe('true');
+  });
+
+  it('a fresh Bray Pal has no colour', async () => {
+    const {deps, createPal} = makeDeps();
+    await seedBrayPal(deps);
+    expect(createPal.mock.calls[0][0].color).toBeUndefined();
+  });
+});

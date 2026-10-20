@@ -168,6 +168,8 @@ class PalStore {
         storage: AsyncStorage,
         pals: () => this.pals,
         createPal: this.addPal,
+        updatePal: (id, updates) =>
+          this.updatePal(id, updates as unknown as PalUpdate),
       });
 
       // Register talent engines (idempotent)

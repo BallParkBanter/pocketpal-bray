@@ -17,6 +17,7 @@ import {chatSessionRepository} from '../repositories/ChatSessionRepository';
 import {defaultCompletionParams} from '../utils/completionSettingsVersions';
 import {derivedText} from '../utils/chat';
 import {palStore} from './PalStore';
+import {newChatDefaultPalId} from '../services/talents/bray/defaultPal';
 import {deriveToolSchemas} from '../services/talents';
 import {AgentUiState, initialAgentUiState} from '../services/agent';
 
@@ -159,6 +160,7 @@ class ChatSessionStore {
       // Load data from database (whether migration happened or not)
       await this.loadSessionList();
       await this.loadGlobalSettings();
+      await this.applyBrayDefaultPal();
     } catch (error) {
       console.error('Failed to initialize ChatSessionStore:', error);
       runInAction(() => {
@@ -351,9 +353,24 @@ class ChatSessionStore {
     }
   }
 
+  /** Bray fork: at app start, an empty new chat is already on the Bray Pal. */
+  async applyBrayDefaultPal(): Promise<void> {
+    try {
+      await palStore.ready;
+    } catch {
+      // palStore logs its own init errors
+    }
+    runInAction(() => {
+      if (!this.activeSessionId && this.newChatPalId === undefined) {
+        this.newChatPalId = newChatDefaultPalId(palStore.pals, undefined);
+      }
+    });
+  }
+
   resetActiveSession() {
     runInAction(() => {
-      this.newChatPalId = this.activePalId;
+      // Bray fork: every new chat starts on the "Bray" Pal.
+      this.newChatPalId = newChatDefaultPalId(palStore.pals, this.activePalId);
       this.newChatSettingsSource = 'pal'; // Reset to default for new chat
       this.newChatThinkingOverride = undefined;
       this.newChatReasoningEffort = undefined;

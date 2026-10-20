@@ -22,6 +22,9 @@ export const BRAY_TALENTS = [
 
 export type NewPal = Omit<Pal, 'id' | 'created_at' | 'updated_at'>;
 
+/** One-time fix for v1 seeds, which tinted the chat with a Pal colour. */
+export const BRAY_UNTINTED_KEY = 'bray.untinted.v1';
+
 export interface SeedDeps {
   storage: {
     getItem(key: string): Promise<string | null>;
@@ -29,6 +32,8 @@ export interface SeedDeps {
   };
   pals: () => Pal[];
   createPal: (pal: NewPal) => Promise<unknown>;
+  /** Clears fields on an existing Pal (color: null removes the tint). */
+  updatePal?: (id: string, updates: {color: null}) => Promise<unknown>;
 }
 
 export function brayPalData(): NewPal {
@@ -45,7 +50,8 @@ export function brayPalData(): NewPal {
     parameters: {},
     parameterSchema: [],
     capabilities: {tools: true},
-    color: ['#13A1EE', '#FAFAFA'],
+    // No colour: Bray is the app's built-in default, so the chat keeps the
+    // normal theme instead of a Pal tint.
     source: 'local',
     pact: {
       talents: BRAY_TALENTS.map(name => ({name, necessity: 'required'})),
@@ -55,6 +61,32 @@ export function brayPalData(): NewPal {
 
 /** Returns true when it created the Pal. Never throws. */
 export async function seedBrayPal(deps: SeedDeps): Promise<boolean> {
+  const created = await seedOnce(deps);
+  await untintOnce(deps);
+  return created;
+}
+
+async function untintOnce(deps: SeedDeps): Promise<void> {
+  try {
+    if (
+      !deps.updatePal ||
+      (await deps.storage.getItem(BRAY_UNTINTED_KEY)) === 'true'
+    ) {
+      return;
+    }
+    const bray = deps
+      .pals()
+      .find(p => p.name === BRAY_PAL_NAME && p.source === 'local');
+    if (bray?.color) {
+      await deps.updatePal(bray.id, {color: null});
+    }
+    await deps.storage.setItem(BRAY_UNTINTED_KEY, 'true');
+  } catch (error) {
+    console.error('Error untinting Bray pal:', error);
+  }
+}
+
+async function seedOnce(deps: SeedDeps): Promise<boolean> {
   try {
     if ((await deps.storage.getItem(BRAY_SEEDED_KEY)) === 'true') {
       return false;

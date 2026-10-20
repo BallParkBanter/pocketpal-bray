@@ -292,6 +292,20 @@ describe('chatSessionStore', () => {
       expect(sent.id).toBe('');
       expect(chatSessionStore.activeSessionId).toBeNull();
     });
+
+    it('Bray fork: a new chat starts on the Bray Pal', () => {
+      const {palStore} = require('../PalStore');
+      const saved = palStore.pals;
+      palStore.pals = [
+        {id: 'pip-id', name: 'Pip', source: 'local'},
+        {id: 'bray-id', name: 'Bray', source: 'local'},
+      ];
+      chatSessionStore.newChatPalId = 'pip-id';
+      chatSessionStore.resetActiveSession();
+      expect(chatSessionStore.newChatPalId).toBe('bray-id');
+      palStore.pals = saved;
+      chatSessionStore.newChatPalId = undefined;
+    });
   });
 
   describe('addMessageToSession', () => {

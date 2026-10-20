@@ -351,11 +351,11 @@ describe('input', () => {
     expect(plusButton.props.accessibilityState.disabled).toBe(false);
   });
 
-  it('shows pal selector button', () => {
+  it('hides the pal selector button (Bray fork: Bray is always on)', () => {
     expect.assertions(1);
     const onSendPress = jest.fn();
     const onPalBtnPress = jest.fn();
-    const {getByLabelText} = render(
+    const {queryByLabelText} = render(
       <UserContext.Provider value={user}>
         <ChatInput
           {...{
@@ -367,9 +367,7 @@ describe('input', () => {
       </UserContext.Provider>,
     );
 
-    const palButton = getByLabelText('Select Pal');
-    fireEvent.press(palButton);
-    expect(onPalBtnPress).toHaveBeenCalledTimes(1);
+    expect(queryByLabelText('Select Pal')).toBeNull();
   });
 
   it('shows video button for video pal type', async () => {

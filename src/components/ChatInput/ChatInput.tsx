@@ -1,4 +1,5 @@
 import * as React from 'react';
+import {BRAY_HIDE_PAL_UI} from '../../services/talents/bray/brayUi';
 import {
   TextInput,
   TextInputProps,
@@ -535,54 +536,56 @@ export const ChatInput = observer(
                 </Menu>
               )}
 
-              {/* Pal Selector */}
-              <View style={styles.palSelector}>
-                <TouchableOpacity
-                  style={[
-                    styles.palBtn,
-                    {
-                      backgroundColor:
-                        uiStore.colorScheme === 'dark'
-                          ? theme.colors.inverseOnSurface
-                          : theme.colors.inverseSurface,
-                    },
-                    currentActivePal?.color && {
-                      backgroundColor: currentActivePal?.color?.[0],
-                    },
-                  ]}
-                  onPress={onPalBtnPress}
-                  accessibilityLabel="Select Pal"
-                  accessibilityRole="button">
-                  <Animated.View
-                    style={{
-                      transform: [{rotate: rotateInterpolate}],
-                    }}>
-                    <ChevronUpIcon stroke={inputBackgroundColor} />
-                  </Animated.View>
-                </TouchableOpacity>
-
-                {/* Pal Name Display */}
-                {currentActivePal?.name && hasActiveModel && (
-                  <Text
+              {/* Pal Selector (hidden in the Bray fork: Bray is always on) */}
+              {!BRAY_HIDE_PAL_UI && (
+                <View style={styles.palSelector}>
+                  <TouchableOpacity
                     style={[
-                      styles.palNameCompact,
+                      styles.palBtn,
                       {
-                        color: onSurfaceColor,
+                        backgroundColor:
+                          uiStore.colorScheme === 'dark'
+                            ? theme.colors.inverseOnSurface
+                            : theme.colors.inverseSurface,
                       },
-                    ]}>
-                    Pal:{' '}
+                      currentActivePal?.color && {
+                        backgroundColor: currentActivePal?.color?.[0],
+                      },
+                    ]}
+                    onPress={onPalBtnPress}
+                    accessibilityLabel="Select Pal"
+                    accessibilityRole="button">
+                    <Animated.View
+                      style={{
+                        transform: [{rotate: rotateInterpolate}],
+                      }}>
+                      <ChevronUpIcon stroke={inputBackgroundColor} />
+                    </Animated.View>
+                  </TouchableOpacity>
+
+                  {/* Pal Name Display */}
+                  {currentActivePal?.name && hasActiveModel && (
                     <Text
                       style={[
-                        styles.palNameValueCompact,
+                        styles.palNameCompact,
                         {
                           color: onSurfaceColor,
                         },
                       ]}>
-                      {currentActivePal?.name}
+                      Pal:{' '}
+                      <Text
+                        style={[
+                          styles.palNameValueCompact,
+                          {
+                            color: onSurfaceColor,
+                          },
+                        ]}>
+                        {currentActivePal?.name}
+                      </Text>
                     </Text>
-                  </Text>
-                )}
-              </View>
+                  )}
+                </View>
+              )}
 
               {/* Thinking Toggle Button. Graded models (axis-2) cycle
                   off -> low -> medium -> high; effortless models toggle
